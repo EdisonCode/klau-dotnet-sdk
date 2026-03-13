@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- NuGet package metadata -->
+    <PackageId>Klau.Sdk</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Jed Dawson</Authors>
+    <Company>Klau</Company>
+    <Description>Official .NET SDK for the Klau API. Built for dev teams integrating roll-off waste hauling operations into .NET applications.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/klauapp/klau-dotnet-sdk</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/klauapp/klau-dotnet-sdk</RepositoryUrl>
+    <PackageTags>klau;waste;hauling;roll-off;dispatch;sdk</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

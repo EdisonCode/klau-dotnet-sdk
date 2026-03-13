@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C55BFCF8-B6E3-4692-BBA6-506F105BC8AE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Klau.Sdk", "src\Klau.Sdk\Klau.Sdk.csproj", "{4754D1C3-509C-4834-AA9B-C941200BC4BB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{20844B99-7243-4CA1-B841-A0DAA0A6BF86}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Klau.Sdk.Tests", "tests\Klau.Sdk.Tests\Klau.Sdk.Tests.csproj", "{EC3E4B6C-1236-454B-AAD3-4BDEB7408242}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4754D1C3-509C-4834-AA9B-C941200BC4BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4754D1C3-509C-4834-AA9B-C941200BC4BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4754D1C3-509C-4834-AA9B-C941200BC4BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4754D1C3-509C-4834-AA9B-C941200BC4BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC3E4B6C-1236-454B-AAD3-4BDEB7408242}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC3E4B6C-1236-454B-AAD3-4BDEB7408242}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC3E4B6C-1236-454B-AAD3-4BDEB7408242}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC3E4B6C-1236-454B-AAD3-4BDEB7408242}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{4754D1C3-509C-4834-AA9B-C941200BC4BB} = {C55BFCF8-B6E3-4692-BBA6-506F105BC8AE}
+		{EC3E4B6C-1236-454B-AAD3-4BDEB7408242} = {20844B99-7243-4CA1-B841-A0DAA0A6BF86}
+	EndGlobalSection
+EndGlobal
