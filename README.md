@@ -28,25 +28,37 @@ foreach (var dispatch in board.Dispatches)
 
 The API key is the only credential you need. It authenticates as your company with the scopes you configured at creation time.
 
-## Enterprise: Sub-Tenant Operations
+## Enterprise: Multi-Division Operations
 
-Parent company API keys can operate on any child tenant. This is how enterprise customers with multiple divisions integrate once and manage everything through a single API key.
+Parent company API keys can list all divisions and operate on any child tenant. Integrate once, manage everything through a single API key.
 
 ```csharp
 using var klau = new KlauClient("kl_live_corporate_api_key");
 
-// Operate on a specific division
-var eastRegion = klau.ForTenant("east-division-company-id");
-var westRegion = klau.ForTenant("west-division-company-id");
+// List all divisions under your account
+var divisions = await klau.Divisions.ListAsync();
+foreach (var div in divisions)
+{
+    Console.WriteLine($"{div.Name}: {div.DriverCount} drivers, {div.JobCount} jobs");
+}
 
-// Each scope targets its own tenant's data
-var eastBoard = await eastRegion.Dispatches.GetBoardAsync("2026-03-13");
-var westBoard = await westRegion.Dispatches.GetBoardAsync("2026-03-13");
+// Get aggregate usage across all divisions
+var usage = await klau.Divisions.GetUsageSummaryAsync();
+Console.WriteLine($"Total jobs: {usage.TotalJobs} across {usage.Divisions.Count} divisions");
+
+// Operate on a specific division
+var region = klau.ForTenant(divisions[0].Id);
+var board = await region.Dispatches.GetBoardAsync("2026-03-13");
+var jobs = await region.Jobs.ListAsync(date: "2026-03-13");
 
 // Or set/clear tenant context directly
-klau.SetTenant("east-division-company-id");
-var jobs = await klau.Jobs.ListAsync(date: "2026-03-13");
+klau.SetTenant(divisions[0].Id);
+var customers = await klau.Customers.ListAsync();
 klau.ClearTenant(); // revert to parent company context
+
+// Get detailed usage for a single division
+var divUsage = await klau.Divisions.GetUsageAsync(divisions[0].Id);
+Console.WriteLine($"Recent jobs: {divUsage.RecentJobs}, Billed: {divUsage.BilledJobs}");
 ```
 
 ## Jobs

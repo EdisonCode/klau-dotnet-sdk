@@ -6,6 +6,7 @@ using Klau.Sdk.DumpTickets;
 using Klau.Sdk.Jobs;
 using Klau.Sdk.Materials;
 using Klau.Sdk.Orders;
+using Klau.Sdk.Divisions;
 using Klau.Sdk.Storefronts;
 
 namespace Klau.Sdk;
@@ -34,6 +35,7 @@ public sealed class KlauClient : IDisposable
     public MaterialClient Materials { get; }
     public DumpTicketClient DumpTickets { get; }
     public OrderClient Orders { get; }
+    public DivisionClient Divisions { get; }
 
     /// <summary>
     /// Create a new Klau API client authenticated with an API key.
@@ -64,6 +66,7 @@ public sealed class KlauClient : IDisposable
         Materials = new MaterialClient(_http);
         DumpTickets = new DumpTicketClient(_http);
         Orders = new OrderClient(_http);
+        Divisions = new DivisionClient(_http);
 
         _http.SetToken(apiKey);
     }
