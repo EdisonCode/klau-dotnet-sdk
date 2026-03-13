@@ -12,8 +12,8 @@
     <Company>Klau</Company>
     <Description>Official .NET SDK for the Klau API. Built for dev teams integrating roll-off waste hauling operations into .NET applications.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/klauapp/klau-dotnet-sdk</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/klauapp/klau-dotnet-sdk</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/EdisonCode/klau-dotnet-sdk</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/EdisonCode/klau-dotnet-sdk</RepositoryUrl>
     <PackageTags>klau;waste;hauling;roll-off;dispatch;sdk</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

@@ -14,7 +14,7 @@ namespace Klau.Sdk;
 /// Entry point for the Klau .NET SDK.
 ///
 /// Usage:
-///   var klau = new KlauClient("https://your-instance.klau.app");
+///   var klau = new KlauClient("https://api.getklau.com");
 ///   await klau.Auth.LoginAsync("user@example.com", "password");
 ///   var board = await klau.Dispatches.GetBoardAsync("2026-03-13");
 /// </summary>

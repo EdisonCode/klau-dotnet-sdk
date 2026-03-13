@@ -1,6 +1,6 @@
 # Klau .NET SDK
 
-Official .NET SDK for the [Klau](https://klau.app) API. Built for dev teams integrating roll-off waste hauling operations into .NET applications.
+Official .NET SDK for the [Klau](https://getklau.com) API. Built for dev teams integrating roll-off waste hauling operations into .NET applications.
 
 ## Installation
 
@@ -14,7 +14,7 @@ dotnet add package Klau.Sdk
 using Klau.Sdk;
 
 // Create client and authenticate
-using var klau = new KlauClient("https://your-instance.klau.app");
+using var klau = new KlauClient("https://api.getklau.com");
 await klau.Auth.LoginAsync("user@example.com", "password");
 
 // Get today's dispatch board
@@ -34,7 +34,7 @@ var result = await klau.Auth.LoginAsync("user@example.com", "password");
 Console.WriteLine($"Logged in as {result.User.Name} at {result.Company.Name}");
 
 // Or use a pre-existing token
-using var klau = new KlauClient("https://your-instance.klau.app", "your-jwt-token");
+using var klau = new KlauClient("https://api.getklau.com", "your-jwt-token");
 ```
 
 ## Jobs
@@ -106,34 +106,35 @@ await klau.Dispatches.PublishAsync("2026-03-13");
 
 ```csharp
 // Public endpoints (no auth required)
+// Storefronts live at {slug}.rolloff.app, configured via the API
 
 // Get storefront catalog
-var config = await klau.Storefronts.GetConfigAsync("dcwaste");
+var config = await klau.Storefronts.GetConfigAsync("my-company");
 foreach (var offering in config.ServiceOfferings)
 {
     Console.WriteLine($"{offering.Name}: ${offering.BasePriceCents / 100.0}");
 }
 
 // Check available delivery dates
-var availability = await klau.Storefronts.CheckAvailabilityAsync("dcwaste",
-    new CheckAvailabilityRequest { Zip = "62049" });
+var availability = await klau.Storefronts.CheckAvailabilityAsync("my-company",
+    new CheckAvailabilityRequest { Zip = "90210" });
 
 // Submit an order
-var order = await klau.Storefronts.SubmitOrderAsync("dcwaste", new SubmitOrderRequest
+var order = await klau.Storefronts.SubmitOrderAsync("my-company", new SubmitOrderRequest
 {
     ServiceOfferingId = config.ServiceOfferings[0].Id,
     Contact = new OrderContact
     {
-        Name = "Jane Smith",
-        Phone = "2175551234",
+        Name = "Jane Doe",
+        Phone = "5555551234",
         Email = "jane@example.com"
     },
     DeliveryAddress = new DeliveryAddress
     {
         Street = "123 Main St",
-        City = "Hillsboro",
-        State = "IL",
-        Zip = "62049"
+        City = "Anytown",
+        State = "CA",
+        Zip = "90210"
     },
     RequestedDeliveryDate = "2026-03-15",
     TimeWindow = TimeWindow.MORNING
@@ -171,15 +172,15 @@ Console.WriteLine($"Settled: ${settlement.FinalTotalCents / 100.0}");
 
 ```csharp
 // Search customers
-var customers = await klau.Customers.ListAsync(search: "Smith");
+var customers = await klau.Customers.ListAsync(search: "Acme");
 
 // Create a customer
 var customer = await klau.Customers.CreateAsync(new CreateCustomerRequest
 {
-    Name = "Smith Construction",
-    ContactName = "John Smith",
-    ContactPhone = "2175551234",
-    ContactEmail = "john@smithconstruction.com"
+    Name = "Acme Construction",
+    ContactName = "John Doe",
+    ContactPhone = "5555551234",
+    ContactEmail = "john@example.com"
 });
 
 // Get full customer 360 view
