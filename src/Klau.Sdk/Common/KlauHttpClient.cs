@@ -7,12 +7,14 @@ namespace Klau.Sdk.Common;
 
 /// <summary>
 /// Shared HTTP client for all Klau API calls. Handles authentication,
-/// serialization, and error mapping.
+/// tenant context, serialization, and error mapping.
 /// </summary>
 public sealed class KlauHttpClient : IDisposable
 {
     private readonly HttpClient _http;
     private string? _token;
+
+    private const string TenantHeader = "Klau-Tenant-Id";
 
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -43,6 +45,19 @@ public sealed class KlauHttpClient : IDisposable
     }
 
     internal string? Token => _token;
+
+    /// <summary>
+    /// Set the tenant context for sub-tenant operations.
+    /// Parent company API keys can operate on child tenants by setting this header.
+    /// </summary>
+    internal void SetTenantId(string? tenantId)
+    {
+        _http.DefaultRequestHeaders.Remove(TenantHeader);
+        if (tenantId is not null)
+        {
+            _http.DefaultRequestHeaders.Add(TenantHeader, tenantId);
+        }
+    }
 
     internal async Task<T> GetAsync<T>(string path, CancellationToken ct = default)
     {

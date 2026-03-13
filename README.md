@@ -10,12 +10,12 @@ dotnet add package Klau.Sdk
 
 ## Quick Start
 
+Generate an API key in **Settings > Developer** in your Klau dashboard. API keys start with `kl_live_`, are scoped to specific permissions, and can be revoked without affecting user credentials.
+
 ```csharp
 using Klau.Sdk;
 
-// Create client and authenticate
-using var klau = new KlauClient("https://api.getklau.com");
-await klau.Auth.LoginAsync("user@example.com", "password");
+using var klau = new KlauClient("kl_live_your_api_key_here");
 
 // Get today's dispatch board
 var board = await klau.Dispatches.GetBoardAsync("2026-03-13");
@@ -26,15 +26,27 @@ foreach (var dispatch in board.Dispatches)
 }
 ```
 
-## Authentication
+The API key is the only credential you need. It authenticates as your company with the scopes you configured at creation time.
+
+## Enterprise: Sub-Tenant Operations
+
+Parent company API keys can operate on any child tenant. This is how enterprise customers with multiple divisions integrate once and manage everything through a single API key.
 
 ```csharp
-// Login with credentials (stores token automatically)
-var result = await klau.Auth.LoginAsync("user@example.com", "password");
-Console.WriteLine($"Logged in as {result.User.Name} at {result.Company.Name}");
+using var klau = new KlauClient("kl_live_corporate_api_key");
 
-// Or use a pre-existing token
-using var klau = new KlauClient("https://api.getklau.com", "your-jwt-token");
+// Operate on a specific division
+var eastRegion = klau.ForTenant("east-division-company-id");
+var westRegion = klau.ForTenant("west-division-company-id");
+
+// Each scope targets its own tenant's data
+var eastBoard = await eastRegion.Dispatches.GetBoardAsync("2026-03-13");
+var westBoard = await westRegion.Dispatches.GetBoardAsync("2026-03-13");
+
+// Or set/clear tenant context directly
+klau.SetTenant("east-division-company-id");
+var jobs = await klau.Jobs.ListAsync(date: "2026-03-13");
+klau.ClearTenant(); // revert to parent company context
 ```
 
 ## Jobs
@@ -104,11 +116,10 @@ await klau.Dispatches.PublishAsync("2026-03-13");
 
 ## Storefront (Online Ordering)
 
-```csharp
-// Public endpoints (no auth required)
-// Storefronts live at {slug}.rolloff.app, configured via the API
+Storefronts are configured through the API and live at `{slug}.rolloff.app`. Public endpoints (catalog, order submission, availability) do not require authentication.
 
-// Get storefront catalog
+```csharp
+// Get storefront catalog (public, no auth required)
 var config = await klau.Storefronts.GetConfigAsync("my-company");
 foreach (var offering in config.ServiceOfferings)
 {
@@ -220,6 +231,8 @@ catch (KlauApiException ex)
 }
 ```
 
+Common error codes: `VALIDATION_ERROR`, `UNAUTHORIZED`, `NOT_FOUND`, `INSUFFICIENT_SCOPE`, `COMMAND_FAILED`.
+
 ## Pagination
 
 List endpoints return `PagedResult<T>` with pagination metadata:
@@ -233,6 +246,22 @@ if (page1.HasMore)
     var page2 = await klau.Jobs.ListAsync(page: 2, pageSize: 50);
 }
 ```
+
+## API Key Scopes
+
+API keys can be scoped to specific permissions using `action:resource` format:
+
+| Scope | Access |
+|-------|--------|
+| `read:all` | Read access to all resources |
+| `write:all` | Write access to all resources |
+| `read:jobs` | Read jobs only |
+| `write:dispatches` | Write access to dispatches |
+| `*` | Full access (read + write, all resources) |
+
+Resources: `jobs`, `drivers`, `trucks`, `dispatches`, `customers`, `sites`, `yards`, `dump-sites`, `materials`, `storefronts`, `orders`, `dump-tickets`, `communications`, `intelligence`, `coaching`, `export`, and more.
+
+If a request exceeds the key's scopes, the API returns `403 INSUFFICIENT_SCOPE`.
 
 ## Requirements
 
