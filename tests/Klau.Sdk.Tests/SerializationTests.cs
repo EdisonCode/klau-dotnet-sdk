@@ -185,7 +185,7 @@ public class SerializationTests
     {
         var (client, handler) = CreateClient();
         handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED",
-            customerName = "Test", externalId = "rmo-order-7890",
+            customerName = "Test", externalId = "erp-wo-7890",
             createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
 
         await client.Jobs.CreateAsync(new CreateJobRequest
@@ -193,22 +193,22 @@ public class SerializationTests
             CustomerId = "cust-1",
             Type = JobType.DELIVERY,
             RequestedDate = "2026-03-14",
-            ExternalId = "rmo-order-7890"
+            ExternalId = "erp-wo-7890"
         });
 
         // Verify it was sent in the request
         var body = handler.SentBodies[0]!;
         using var doc = JsonDocument.Parse(body);
-        Assert.Equal("rmo-order-7890", doc.RootElement.GetProperty("externalId").GetString());
+        Assert.Equal("erp-wo-7890", doc.RootElement.GetProperty("externalId").GetString());
 
         // The mock response also includes externalId, but CreateAsync returns the response
         // object. Let's verify via a separate get:
         handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED",
-            customerName = "Test", externalId = "rmo-order-7890",
+            customerName = "Test", externalId = "erp-wo-7890",
             createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
 
         var job = await client.Jobs.GetAsync("j-1");
-        Assert.Equal("rmo-order-7890", job.ExternalId);
+        Assert.Equal("erp-wo-7890", job.ExternalId);
     }
 
     [Fact]

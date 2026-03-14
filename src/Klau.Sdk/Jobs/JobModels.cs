@@ -123,7 +123,7 @@ public sealed record CreateJobRequest
     public string? ContainerNumber { get; init; }
 
     /// <summary>
-    /// External system ID for bidirectional sync (e.g. your RMO order ID).
+    /// External system ID for bidirectional sync (e.g. your ERP work order ID).
     /// </summary>
     [JsonPropertyName("externalId")]
     public string? ExternalId { get; init; }
