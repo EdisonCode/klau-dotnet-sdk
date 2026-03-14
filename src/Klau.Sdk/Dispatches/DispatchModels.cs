@@ -60,6 +60,14 @@ public sealed record OptimizationJob
 
 public sealed record OptimizationResult
 {
+    /// <summary>
+    /// Transition efficiency score (0-100). Measures the percentage of job-to-job
+    /// transitions that don't require a yard return. Higher is better.
+    /// </summary>
+    [JsonPropertyName("flowScore")]
+    public int? FlowScore { get; init; }
+
+    /// <summary>Legacy chain score. Use FlowScore instead.</summary>
     [JsonPropertyName("chainScore")]
     public int? ChainScore { get; init; }
 
@@ -71,6 +79,17 @@ public sealed record OptimizationResult
 
     [JsonPropertyName("unassignedJobs")]
     public int? UnassignedJobs { get; init; }
+
+    /// <summary>
+    /// Overall plan quality score (0-100) combining flow efficiency,
+    /// geographic compactness, utilization balance, and more.
+    /// </summary>
+    [JsonPropertyName("planQuality")]
+    public int? PlanQuality { get; init; }
+
+    /// <summary>Plan quality letter grade (A+ through F).</summary>
+    [JsonPropertyName("planGrade")]
+    public string? PlanGrade { get; init; }
 }
 
 public sealed record OptimizeRequest
@@ -105,8 +124,14 @@ public sealed record WhatIfRequest
 
 public sealed record WhatIfResult
 {
+    [JsonPropertyName("flowScore")]
+    public int? FlowScore { get; init; }
+
     [JsonPropertyName("chainScore")]
     public int? ChainScore { get; init; }
+
+    [JsonPropertyName("planQuality")]
+    public int? PlanQuality { get; init; }
 
     [JsonPropertyName("dispatches")]
     public IReadOnlyList<Dispatch>? Dispatches { get; init; }

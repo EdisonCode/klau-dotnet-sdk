@@ -7,6 +7,7 @@ using Klau.Sdk.Jobs;
 using Klau.Sdk.Materials;
 using Klau.Sdk.Orders;
 using Klau.Sdk.Divisions;
+using Klau.Sdk.Proposals;
 using Klau.Sdk.Storefronts;
 using Microsoft.Extensions.Logging;
 
@@ -35,6 +36,7 @@ public sealed class KlauClient : IDisposable
     public MaterialClient Materials { get; }
     public DumpTicketClient DumpTickets { get; }
     public OrderClient Orders { get; }
+    public ProposalClient Proposals { get; }
     public DivisionClient Divisions { get; }
 
     /// <summary>
@@ -68,6 +70,7 @@ public sealed class KlauClient : IDisposable
         Materials = new MaterialClient(Http);
         DumpTickets = new DumpTicketClient(Http);
         Orders = new OrderClient(Http);
+        Proposals = new ProposalClient(Http);
         Divisions = new DivisionClient(Http);
 
         Http.SetToken(apiKey);
@@ -117,13 +120,13 @@ public sealed class TenantScope
     public MaterialClient Materials { get; }
     public DumpTicketClient DumpTickets { get; }
     public OrderClient Orders { get; }
+    public ProposalClient Proposals { get; }
 
     internal TenantScope(KlauClient client, string tenantId)
     {
         _tenantId = tenantId;
         var http = client.Http;
 
-        // Each sub-client gets the tenant override passed through to per-request headers
         Jobs = new JobClient(http, tenantId);
         Customers = new CustomerClient(http, tenantId);
         Dispatches = new DispatchClient(http, tenantId);
@@ -131,5 +134,6 @@ public sealed class TenantScope
         Materials = new MaterialClient(http, tenantId);
         DumpTickets = new DumpTicketClient(http, tenantId);
         Orders = new OrderClient(http, tenantId);
+        Proposals = new ProposalClient(http, tenantId);
     }
 }
