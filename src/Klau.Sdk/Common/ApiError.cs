@@ -5,22 +5,22 @@ namespace Klau.Sdk.Common;
 /// <summary>
 /// Standard Klau API error response.
 /// </summary>
-public sealed class ApiErrorResponse
+public sealed record ApiErrorResponse
 {
     [JsonPropertyName("error")]
-    public ApiError Error { get; set; } = default!;
+    public ApiError Error { get; init; } = default!;
 }
 
-public sealed class ApiError
+public sealed record ApiError
 {
     [JsonPropertyName("code")]
-    public string Code { get; set; } = string.Empty;
+    public string Code { get; init; } = string.Empty;
 
     [JsonPropertyName("message")]
-    public string Message { get; set; } = string.Empty;
+    public string Message { get; init; } = string.Empty;
 
     [JsonPropertyName("details")]
-    public object? Details { get; set; }
+    public object? Details { get; init; }
 }
 
 /// <summary>

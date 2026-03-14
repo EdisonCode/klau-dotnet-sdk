@@ -3,20 +3,20 @@ namespace Klau.Sdk.Common;
 /// <summary>
 /// A page of results from a list endpoint.
 /// </summary>
-public sealed class PagedResult<T>
+public sealed record PagedResult<T>(
+    IReadOnlyList<T> Items,
+    int? Total,
+    int? Page,
+    int? PageSize,
+    bool HasMore)
 {
-    public IReadOnlyList<T> Items { get; }
-    public int? Total { get; }
-    public int? Page { get; }
-    public int? PageSize { get; }
-    public bool HasMore { get; }
-
     public PagedResult(IReadOnlyList<T> items, ResponseMeta? meta)
+        : this(
+            items,
+            meta?.Total,
+            meta?.Page,
+            meta?.PageSize,
+            meta?.HasMore ?? false)
     {
-        Items = items;
-        Total = meta?.Total;
-        Page = meta?.Page;
-        PageSize = meta?.PageSize;
-        HasMore = meta?.HasMore ?? false;
     }
 }

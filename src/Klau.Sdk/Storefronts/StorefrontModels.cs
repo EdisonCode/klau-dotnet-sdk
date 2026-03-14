@@ -3,314 +3,314 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Storefronts;
 
-public sealed class StorefrontConfig
+public sealed record StorefrontConfig
 {
     [JsonPropertyName("slug")]
-    public string Slug { get; set; } = string.Empty;
+    public string Slug { get; init; } = string.Empty;
 
     [JsonPropertyName("businessName")]
-    public string BusinessName { get; set; } = string.Empty;
+    public string BusinessName { get; init; } = string.Empty;
 
     [JsonPropertyName("primaryColor")]
-    public string? PrimaryColor { get; set; }
+    public string? PrimaryColor { get; init; }
 
     [JsonPropertyName("logoUrl")]
-    public string? LogoUrl { get; set; }
+    public string? LogoUrl { get; init; }
 
     [JsonPropertyName("tagline")]
-    public string? Tagline { get; set; }
+    public string? Tagline { get; init; }
 
     [JsonPropertyName("serviceOfferings")]
-    public List<ServiceOffering> ServiceOfferings { get; set; } = [];
+    public IReadOnlyList<ServiceOffering> ServiceOfferings { get; init; } = [];
 
     [JsonPropertyName("serviceAreaDescription")]
-    public string? ServiceAreaDescription { get; set; }
+    public string? ServiceAreaDescription { get; init; }
 }
 
-public sealed class ServiceOffering
+public sealed record ServiceOffering
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
 
     [JsonPropertyName("containerSize")]
-    public int? ContainerSize { get; set; }
+    public int? ContainerSize { get; init; }
 
     [JsonPropertyName("basePriceCents")]
-    public int BasePriceCents { get; set; }
+    public int BasePriceCents { get; init; }
 
     [JsonPropertyName("rentalPeriodDays")]
-    public int? RentalPeriodDays { get; set; }
+    public int? RentalPeriodDays { get; init; }
 
     [JsonPropertyName("dailyOverageCents")]
-    public int? DailyOverageCents { get; set; }
+    public int? DailyOverageCents { get; init; }
 
     [JsonPropertyName("materialPricings")]
-    public List<MaterialPricing>? MaterialPricings { get; set; }
+    public IReadOnlyList<MaterialPricing>? MaterialPricings { get; init; }
 }
 
-public sealed class MaterialPricing
+public sealed record MaterialPricing
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("materialId")]
-    public string MaterialId { get; set; } = string.Empty;
+    public string MaterialId { get; init; } = string.Empty;
 
     [JsonPropertyName("materialName")]
-    public string? MaterialName { get; set; }
+    public string? MaterialName { get; init; }
 
     [JsonPropertyName("priceCents")]
-    public int PriceCents { get; set; }
+    public int PriceCents { get; init; }
 
     [JsonPropertyName("includedWeightLbs")]
-    public int? IncludedWeightLbs { get; set; }
+    public int? IncludedWeightLbs { get; init; }
 
     [JsonPropertyName("weightOverageRateCents")]
-    public int? WeightOverageRateCents { get; set; }
+    public int? WeightOverageRateCents { get; init; }
 
     [JsonPropertyName("weightOverageUnitLbs")]
-    public int? WeightOverageUnitLbs { get; set; }
+    public int? WeightOverageUnitLbs { get; init; }
 }
 
-public sealed class Storefront
+public sealed record Storefront
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("slug")]
-    public string Slug { get; set; } = string.Empty;
+    public string Slug { get; init; } = string.Empty;
 
     [JsonPropertyName("businessName")]
-    public string BusinessName { get; set; } = string.Empty;
+    public string BusinessName { get; init; } = string.Empty;
 
     [JsonPropertyName("status")]
-    public StorefrontStatus Status { get; set; }
+    public StorefrontStatus Status { get; init; }
 
     [JsonPropertyName("primaryColor")]
-    public string? PrimaryColor { get; set; }
+    public string? PrimaryColor { get; init; }
 
     [JsonPropertyName("logoUrl")]
-    public string? LogoUrl { get; set; }
+    public string? LogoUrl { get; init; }
 }
 
-public sealed class StorefrontOrder
+public sealed record StorefrontOrder
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("status")]
-    public OrderStatus Status { get; set; }
+    public OrderStatus Status { get; init; }
 
     [JsonPropertyName("contactName")]
-    public string ContactName { get; set; } = string.Empty;
+    public string ContactName { get; init; } = string.Empty;
 
     [JsonPropertyName("contactEmail")]
-    public string? ContactEmail { get; set; }
+    public string? ContactEmail { get; init; }
 
     [JsonPropertyName("contactPhone")]
-    public string? ContactPhone { get; set; }
+    public string? ContactPhone { get; init; }
 
     [JsonPropertyName("deliveryAddress")]
-    public string? DeliveryAddress { get; set; }
+    public string? DeliveryAddress { get; init; }
 
     [JsonPropertyName("containerSize")]
-    public int? ContainerSize { get; set; }
+    public int? ContainerSize { get; init; }
 
     [JsonPropertyName("totalCents")]
-    public int? TotalCents { get; set; }
+    public int? TotalCents { get; init; }
 
     [JsonPropertyName("requestedDeliveryDate")]
-    public string? RequestedDeliveryDate { get; set; }
+    public string? RequestedDeliveryDate { get; init; }
 
     [JsonPropertyName("createdAt")]
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; init; }
 }
 
-public sealed class SubmitOrderRequest
+public sealed record SubmitOrderRequest
 {
     [JsonPropertyName("serviceOfferingId")]
-    public string ServiceOfferingId { get; set; } = string.Empty;
+    public required string ServiceOfferingId { get; init; }
 
     [JsonPropertyName("materialPricingId")]
-    public string? MaterialPricingId { get; set; }
+    public string? MaterialPricingId { get; init; }
 
     [JsonPropertyName("contact")]
-    public OrderContact Contact { get; set; } = default!;
+    public required OrderContact Contact { get; init; }
 
     [JsonPropertyName("deliveryAddress")]
-    public DeliveryAddress DeliveryAddress { get; set; } = default!;
+    public required DeliveryAddress DeliveryAddress { get; init; }
 
     [JsonPropertyName("requestedDeliveryDate")]
-    public string RequestedDeliveryDate { get; set; } = string.Empty;
+    public required string RequestedDeliveryDate { get; init; }
 
     [JsonPropertyName("timeWindow")]
-    public TimeWindow? TimeWindow { get; set; }
+    public TimeWindow? TimeWindow { get; init; }
 
     [JsonPropertyName("stripePaymentIntentId")]
-    public string? StripePaymentIntentId { get; set; }
+    public string? StripePaymentIntentId { get; init; }
 
     [JsonPropertyName("smsConsent")]
-    public bool? SmsConsent { get; set; }
+    public bool? SmsConsent { get; init; }
 }
 
-public sealed class OrderContact
+public sealed record OrderContact
 {
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public required string Name { get; init; }
 
     [JsonPropertyName("phone")]
-    public string Phone { get; set; } = string.Empty;
+    public required string Phone { get; init; }
 
     [JsonPropertyName("email")]
-    public string Email { get; set; } = string.Empty;
+    public required string Email { get; init; }
 }
 
-public sealed class DeliveryAddress
+public sealed record DeliveryAddress
 {
     [JsonPropertyName("street")]
-    public string Street { get; set; } = string.Empty;
+    public required string Street { get; init; }
 
     [JsonPropertyName("city")]
-    public string City { get; set; } = string.Empty;
+    public required string City { get; init; }
 
     [JsonPropertyName("state")]
-    public string State { get; set; } = string.Empty;
+    public required string State { get; init; }
 
     [JsonPropertyName("zip")]
-    public string Zip { get; set; } = string.Empty;
+    public required string Zip { get; init; }
 
     [JsonPropertyName("lat")]
-    public double? Lat { get; set; }
+    public double? Lat { get; init; }
 
     [JsonPropertyName("lng")]
-    public double? Lng { get; set; }
+    public double? Lng { get; init; }
 
     [JsonPropertyName("accessNotes")]
-    public string? AccessNotes { get; set; }
+    public string? AccessNotes { get; init; }
 }
 
-public sealed class OrderConfirmation
+public sealed record OrderConfirmation
 {
     [JsonPropertyName("orderId")]
-    public string OrderId { get; set; } = string.Empty;
+    public string OrderId { get; init; } = string.Empty;
 
     [JsonPropertyName("status")]
-    public OrderStatus Status { get; set; }
+    public OrderStatus Status { get; init; }
 
     [JsonPropertyName("trackingUrl")]
-    public string? TrackingUrl { get; set; }
+    public string? TrackingUrl { get; init; }
 }
 
-public sealed class CheckAvailabilityRequest
+public sealed record CheckAvailabilityRequest
 {
     [JsonPropertyName("serviceOfferingId")]
-    public string? ServiceOfferingId { get; set; }
+    public string? ServiceOfferingId { get; init; }
 
     [JsonPropertyName("zip")]
-    public string? Zip { get; set; }
+    public string? Zip { get; init; }
 }
 
-public sealed class AvailabilityResult
+public sealed record AvailabilityResult
 {
     [JsonPropertyName("availableDates")]
-    public List<AvailableDate> AvailableDates { get; set; } = [];
+    public IReadOnlyList<AvailableDate> AvailableDates { get; init; } = [];
 }
 
-public sealed class AvailableDate
+public sealed record AvailableDate
 {
     [JsonPropertyName("date")]
-    public string Date { get; set; } = string.Empty;
+    public string Date { get; init; } = string.Empty;
 
     [JsonPropertyName("available")]
-    public bool Available { get; set; }
+    public bool Available { get; init; }
 
     [JsonPropertyName("priceCents")]
-    public int? PriceCents { get; set; }
+    public int? PriceCents { get; init; }
 
     [JsonPropertyName("discountLabel")]
-    public string? DiscountLabel { get; set; }
+    public string? DiscountLabel { get; init; }
 }
 
-public sealed class SetupStorefrontRequest
+public sealed record SetupStorefrontRequest
 {
     [JsonPropertyName("slug")]
-    public string Slug { get; set; } = string.Empty;
+    public required string Slug { get; init; }
 
     [JsonPropertyName("businessName")]
-    public string BusinessName { get; set; } = string.Empty;
+    public required string BusinessName { get; init; }
 
     [JsonPropertyName("primaryColor")]
-    public string? PrimaryColor { get; set; }
+    public string? PrimaryColor { get; init; }
 
     [JsonPropertyName("logoUrl")]
-    public string? LogoUrl { get; set; }
+    public string? LogoUrl { get; init; }
 
     [JsonPropertyName("tagline")]
-    public string? Tagline { get; set; }
+    public string? Tagline { get; init; }
 
     [JsonPropertyName("serviceAreaZipCodes")]
-    public List<string>? ServiceAreaZipCodes { get; set; }
+    public IReadOnlyList<string>? ServiceAreaZipCodes { get; init; }
 
     [JsonPropertyName("serviceAreaDescription")]
-    public string? ServiceAreaDescription { get; set; }
+    public string? ServiceAreaDescription { get; init; }
 
     [JsonPropertyName("maxDeliveryRadiusMiles")]
-    public int? MaxDeliveryRadiusMiles { get; set; }
+    public int? MaxDeliveryRadiusMiles { get; init; }
 
     [JsonPropertyName("serviceOfferings")]
-    public List<SetupServiceOffering>? ServiceOfferings { get; set; }
+    public IReadOnlyList<SetupServiceOffering>? ServiceOfferings { get; init; }
 
     [JsonPropertyName("leadTimeDays")]
-    public int? LeadTimeDays { get; set; }
+    public int? LeadTimeDays { get; init; }
 
     [JsonPropertyName("maxAdvanceBookingDays")]
-    public int? MaxAdvanceBookingDays { get; set; }
+    public int? MaxAdvanceBookingDays { get; init; }
 
     [JsonPropertyName("requiresPayment")]
-    public bool? RequiresPayment { get; set; }
+    public bool? RequiresPayment { get; init; }
 }
 
-public sealed class SetupServiceOffering
+public sealed record SetupServiceOffering
 {
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public required string Name { get; init; }
 
     [JsonPropertyName("containerSize")]
-    public int ContainerSize { get; set; }
+    public required int ContainerSize { get; init; }
 
     [JsonPropertyName("basePriceCents")]
-    public int BasePriceCents { get; set; }
+    public required int BasePriceCents { get; init; }
 
     [JsonPropertyName("rentalPeriodDays")]
-    public int? RentalPeriodDays { get; set; }
+    public int? RentalPeriodDays { get; init; }
 
     [JsonPropertyName("dailyOverageCents")]
-    public int? DailyOverageCents { get; set; }
+    public int? DailyOverageCents { get; init; }
 }
 
-public sealed class UpdateStorefrontRequest
+public sealed record UpdateStorefrontRequest
 {
     [JsonPropertyName("businessName")]
-    public string? BusinessName { get; set; }
+    public string? BusinessName { get; init; }
 
     [JsonPropertyName("primaryColor")]
-    public string? PrimaryColor { get; set; }
+    public string? PrimaryColor { get; init; }
 
     [JsonPropertyName("logoUrl")]
-    public string? LogoUrl { get; set; }
+    public string? LogoUrl { get; init; }
 
     [JsonPropertyName("tagline")]
-    public string? Tagline { get; set; }
+    public string? Tagline { get; init; }
 
     [JsonPropertyName("serviceAreaDescription")]
-    public string? ServiceAreaDescription { get; set; }
+    public string? ServiceAreaDescription { get; init; }
 
     [JsonPropertyName("leadTimeDays")]
-    public int? LeadTimeDays { get; set; }
+    public int? LeadTimeDays { get; init; }
 
     [JsonPropertyName("maxAdvanceBookingDays")]
-    public int? MaxAdvanceBookingDays { get; set; }
+    public int? MaxAdvanceBookingDays { get; init; }
 }

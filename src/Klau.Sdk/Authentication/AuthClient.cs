@@ -79,65 +79,65 @@ public sealed class AuthClient
     public void ClearToken() => _http.ClearToken();
 }
 
-public sealed class LoginResult
+public sealed record LoginResult
 {
     [JsonPropertyName("token")]
-    public string Token { get; set; } = string.Empty;
+    public string Token { get; init; } = string.Empty;
 
     [JsonPropertyName("user")]
-    public UserInfo User { get; set; } = default!;
+    public UserInfo User { get; init; } = default!;
 
     [JsonPropertyName("company")]
-    public CompanyInfo Company { get; set; } = default!;
+    public CompanyInfo Company { get; init; } = default!;
 }
 
-public sealed class DemoLoginResult
+public sealed record DemoLoginResult
 {
     [JsonPropertyName("token")]
-    public string Token { get; set; } = string.Empty;
+    public string Token { get; init; } = string.Empty;
 }
 
-public sealed class UserInfo
+public sealed record UserInfo
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("email")]
-    public string Email { get; set; } = string.Empty;
+    public string Email { get; init; } = string.Empty;
 
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
 
     [JsonPropertyName("role")]
-    public string Role { get; set; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
 }
 
-public sealed class CompanyInfo
+public sealed record CompanyInfo
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
 
     [JsonPropertyName("timezone")]
-    public string Timezone { get; set; } = string.Empty;
+    public string Timezone { get; init; } = string.Empty;
 }
 
-public sealed class RegisterRequest
+public sealed record RegisterRequest
 {
     [JsonPropertyName("email")]
-    public string Email { get; set; } = string.Empty;
+    public required string Email { get; init; }
 
     [JsonPropertyName("password")]
-    public string Password { get; set; } = string.Empty;
+    public required string Password { get; init; }
 
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public required string Name { get; init; }
 
     [JsonPropertyName("companyName")]
-    public string CompanyName { get; set; } = string.Empty;
+    public required string CompanyName { get; init; }
 
     [JsonPropertyName("subscriptionTier")]
-    public string? SubscriptionTier { get; set; }
+    public string? SubscriptionTier { get; init; }
 }

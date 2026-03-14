@@ -2,134 +2,134 @@ using System.Text.Json.Serialization;
 
 namespace Klau.Sdk.Customers;
 
-public sealed class Customer
+public sealed record Customer
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
 
     [JsonPropertyName("externalId")]
-    public string? ExternalId { get; set; }
+    public string? ExternalId { get; init; }
 
     [JsonPropertyName("contactName")]
-    public string? ContactName { get; set; }
+    public string? ContactName { get; init; }
 
     [JsonPropertyName("contactPhone")]
-    public string? ContactPhone { get; set; }
+    public string? ContactPhone { get; init; }
 
     [JsonPropertyName("contactEmail")]
-    public string? ContactEmail { get; set; }
+    public string? ContactEmail { get; init; }
 
     [JsonPropertyName("billingAddress")]
-    public string? BillingAddress { get; set; }
+    public string? BillingAddress { get; init; }
 
     [JsonPropertyName("notes")]
-    public string? Notes { get; set; }
+    public string? Notes { get; init; }
 
     [JsonPropertyName("isActive")]
-    public bool IsActive { get; set; }
+    public bool IsActive { get; init; }
 
     [JsonPropertyName("createdAt")]
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; init; }
 
     [JsonPropertyName("updatedAt")]
-    public DateTime UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; init; }
 }
 
-public sealed class Customer360
+public sealed record Customer360
 {
     [JsonPropertyName("customer")]
-    public Customer Customer { get; set; } = default!;
+    public Customer Customer { get; init; } = default!;
 
     [JsonPropertyName("healthScore")]
-    public int? HealthScore { get; set; }
+    public int? HealthScore { get; init; }
 
     [JsonPropertyName("lifecycleStage")]
-    public string? LifecycleStage { get; set; }
+    public string? LifecycleStage { get; init; }
 
     [JsonPropertyName("totalOrders")]
-    public int? TotalOrders { get; set; }
+    public int? TotalOrders { get; init; }
 
     [JsonPropertyName("totalRevenueCents")]
-    public long? TotalRevenueCents { get; set; }
+    public long? TotalRevenueCents { get; init; }
 }
 
-public sealed class Site
+public sealed record Site
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("name")]
-    public string? Name { get; set; }
+    public string? Name { get; init; }
 
     [JsonPropertyName("address")]
-    public string Address { get; set; } = string.Empty;
+    public string Address { get; init; } = string.Empty;
 
     [JsonPropertyName("city")]
-    public string? City { get; set; }
+    public string? City { get; init; }
 
     [JsonPropertyName("state")]
-    public string? State { get; set; }
+    public string? State { get; init; }
 
     [JsonPropertyName("zip")]
-    public string? Zip { get; set; }
+    public string? Zip { get; init; }
 
     [JsonPropertyName("lat")]
-    public double? Lat { get; set; }
+    public double? Lat { get; init; }
 
     [JsonPropertyName("lng")]
-    public double? Lng { get; set; }
+    public double? Lng { get; init; }
 
     [JsonPropertyName("accessNotes")]
-    public string? AccessNotes { get; set; }
+    public string? AccessNotes { get; init; }
 
     [JsonPropertyName("externalId")]
-    public string? ExternalId { get; set; }
+    public string? ExternalId { get; init; }
 
     [JsonPropertyName("customerId")]
-    public string CustomerId { get; set; } = string.Empty;
+    public string CustomerId { get; init; } = string.Empty;
 }
 
-public sealed class CreateCustomerRequest
+public sealed record CreateCustomerRequest
 {
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public required string Name { get; init; }
 
     [JsonPropertyName("contactName")]
-    public string? ContactName { get; set; }
+    public string? ContactName { get; init; }
 
     [JsonPropertyName("contactPhone")]
-    public string? ContactPhone { get; set; }
+    public string? ContactPhone { get; init; }
 
     [JsonPropertyName("contactEmail")]
-    public string? ContactEmail { get; set; }
+    public string? ContactEmail { get; init; }
 
     [JsonPropertyName("billingAddress")]
-    public string? BillingAddress { get; set; }
+    public string? BillingAddress { get; init; }
 
     [JsonPropertyName("notes")]
-    public string? Notes { get; set; }
+    public string? Notes { get; init; }
 }
 
-public sealed class UpdateCustomerRequest
+public sealed record UpdateCustomerRequest
 {
     [JsonPropertyName("name")]
-    public string? Name { get; set; }
+    public string? Name { get; init; }
 
     [JsonPropertyName("contactName")]
-    public string? ContactName { get; set; }
+    public string? ContactName { get; init; }
 
     [JsonPropertyName("contactPhone")]
-    public string? ContactPhone { get; set; }
+    public string? ContactPhone { get; init; }
 
     [JsonPropertyName("contactEmail")]
-    public string? ContactEmail { get; set; }
+    public string? ContactEmail { get; init; }
 
     [JsonPropertyName("billingAddress")]
-    public string? BillingAddress { get; set; }
+    public string? BillingAddress { get; init; }
 
     [JsonPropertyName("notes")]
-    public string? Notes { get; set; }
+    public string? Notes { get; init; }
 }

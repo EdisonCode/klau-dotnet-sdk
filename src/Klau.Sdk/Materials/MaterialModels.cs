@@ -3,86 +3,86 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Materials;
 
-public sealed class Material
+public sealed record Material
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
 
     [JsonPropertyName("displayName")]
-    public string DisplayName { get; set; } = string.Empty;
+    public string DisplayName { get; init; } = string.Empty;
 
     [JsonPropertyName("economicDirection")]
-    public MaterialEconomicDirection EconomicDirection { get; set; }
+    public MaterialEconomicDirection EconomicDirection { get; init; }
 
     [JsonPropertyName("templateCode")]
-    public string? TemplateCode { get; set; }
+    public string? TemplateCode { get; init; }
 
     [JsonPropertyName("isActive")]
-    public bool IsActive { get; set; }
+    public bool IsActive { get; init; }
 
     [JsonPropertyName("isStorefrontVisible")]
-    public bool IsStorefrontVisible { get; set; }
+    public bool IsStorefrontVisible { get; init; }
 
     [JsonPropertyName("storefrontSortOrder")]
-    public int StorefrontSortOrder { get; set; }
+    public int StorefrontSortOrder { get; init; }
 
     [JsonPropertyName("createdAt")]
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; init; }
 
     [JsonPropertyName("updatedAt")]
-    public DateTime UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; init; }
 }
 
-public sealed class MaterialTemplate
+public sealed record MaterialTemplate
 {
     [JsonPropertyName("code")]
-    public string Code { get; set; } = string.Empty;
+    public string Code { get; init; } = string.Empty;
 
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
 
     [JsonPropertyName("displayName")]
-    public string DisplayName { get; set; } = string.Empty;
+    public string DisplayName { get; init; } = string.Empty;
 
     [JsonPropertyName("economicDirection")]
-    public MaterialEconomicDirection EconomicDirection { get; set; }
+    public MaterialEconomicDirection EconomicDirection { get; init; }
 }
 
-public sealed class CreateMaterialRequest
+public sealed record CreateMaterialRequest
 {
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public required string Name { get; init; }
 
     [JsonPropertyName("displayName")]
-    public string? DisplayName { get; set; }
+    public string? DisplayName { get; init; }
 
     [JsonPropertyName("economicDirection")]
-    public MaterialEconomicDirection EconomicDirection { get; set; }
+    public required MaterialEconomicDirection EconomicDirection { get; init; }
 
     [JsonPropertyName("isStorefrontVisible")]
-    public bool? IsStorefrontVisible { get; set; }
+    public bool? IsStorefrontVisible { get; init; }
 
     [JsonPropertyName("storefrontSortOrder")]
-    public int? StorefrontSortOrder { get; set; }
+    public int? StorefrontSortOrder { get; init; }
 }
 
-public sealed class UpdateMaterialRequest
+public sealed record UpdateMaterialRequest
 {
     [JsonPropertyName("name")]
-    public string? Name { get; set; }
+    public string? Name { get; init; }
 
     [JsonPropertyName("displayName")]
-    public string? DisplayName { get; set; }
+    public string? DisplayName { get; init; }
 
     [JsonPropertyName("economicDirection")]
-    public MaterialEconomicDirection? EconomicDirection { get; set; }
+    public MaterialEconomicDirection? EconomicDirection { get; init; }
 
     [JsonPropertyName("isStorefrontVisible")]
-    public bool? IsStorefrontVisible { get; set; }
+    public bool? IsStorefrontVisible { get; init; }
 
     [JsonPropertyName("storefrontSortOrder")]
-    public int? StorefrontSortOrder { get; set; }
+    public int? StorefrontSortOrder { get; init; }
 }

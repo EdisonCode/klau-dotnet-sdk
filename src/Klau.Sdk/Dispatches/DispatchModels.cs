@@ -4,110 +4,110 @@ using Klau.Sdk.Jobs;
 
 namespace Klau.Sdk.Dispatches;
 
-public sealed class DispatchBoard
+public sealed record DispatchBoard
 {
     [JsonPropertyName("date")]
-    public string Date { get; set; } = string.Empty;
+    public string Date { get; init; } = string.Empty;
 
     [JsonPropertyName("dispatches")]
-    public List<Dispatch> Dispatches { get; set; } = [];
+    public IReadOnlyList<Dispatch> Dispatches { get; init; } = [];
 
     [JsonPropertyName("unassignedJobs")]
-    public List<Job> UnassignedJobs { get; set; } = [];
+    public IReadOnlyList<Job> UnassignedJobs { get; init; } = [];
 }
 
-public sealed class Dispatch
+public sealed record Dispatch
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; init; } = string.Empty;
 
     [JsonPropertyName("driverId")]
-    public string DriverId { get; set; } = string.Empty;
+    public string DriverId { get; init; } = string.Empty;
 
     [JsonPropertyName("driverName")]
-    public string DriverName { get; set; } = string.Empty;
+    public string DriverName { get; init; } = string.Empty;
 
     [JsonPropertyName("truckId")]
-    public string? TruckId { get; set; }
+    public string? TruckId { get; init; }
 
     [JsonPropertyName("status")]
-    public DispatchStatus Status { get; set; }
+    public DispatchStatus Status { get; init; }
 
     [JsonPropertyName("jobs")]
-    public List<Job> Jobs { get; set; } = [];
+    public IReadOnlyList<Job> Jobs { get; init; } = [];
 }
 
-public sealed class OptimizationJob
+public sealed record OptimizationJob
 {
     [JsonPropertyName("jobId")]
-    public string JobId { get; set; } = string.Empty;
+    public string JobId { get; init; } = string.Empty;
 
     [JsonPropertyName("status")]
-    public OptimizationJobStatus Status { get; set; }
+    public OptimizationJobStatus Status { get; init; }
 
     [JsonPropertyName("estimatedDurationSeconds")]
-    public int? EstimatedDurationSeconds { get; set; }
+    public int? EstimatedDurationSeconds { get; init; }
 
     [JsonPropertyName("pollUrl")]
-    public string? PollUrl { get; set; }
+    public string? PollUrl { get; init; }
 
     [JsonPropertyName("result")]
-    public OptimizationResult? Result { get; set; }
+    public OptimizationResult? Result { get; init; }
 
     [JsonPropertyName("reason")]
-    public string? Reason { get; set; }
+    public string? Reason { get; init; }
 }
 
-public sealed class OptimizationResult
+public sealed record OptimizationResult
 {
     [JsonPropertyName("chainScore")]
-    public int? ChainScore { get; set; }
+    public int? ChainScore { get; init; }
 
     [JsonPropertyName("totalJobs")]
-    public int? TotalJobs { get; set; }
+    public int? TotalJobs { get; init; }
 
     [JsonPropertyName("assignedJobs")]
-    public int? AssignedJobs { get; set; }
+    public int? AssignedJobs { get; init; }
 
     [JsonPropertyName("unassignedJobs")]
-    public int? UnassignedJobs { get; set; }
+    public int? UnassignedJobs { get; init; }
 }
 
-public sealed class OptimizeRequest
+public sealed record OptimizeRequest
 {
     [JsonPropertyName("date")]
-    public string Date { get; set; } = string.Empty;
+    public required string Date { get; init; }
 
     [JsonPropertyName("optimizationMode")]
-    public OptimizationMode? OptimizationMode { get; set; }
+    public OptimizationMode? OptimizationMode { get; init; }
 
     [JsonPropertyName("regionId")]
-    public string? RegionId { get; set; }
+    public string? RegionId { get; init; }
 
     [JsonPropertyName("yardId")]
-    public string? YardId { get; set; }
+    public string? YardId { get; init; }
 }
 
-public sealed class ReorderRequest
+public sealed record ReorderRequest
 {
     [JsonPropertyName("jobIds")]
-    public List<string> JobIds { get; set; } = [];
+    public required IReadOnlyList<string> JobIds { get; init; }
 }
 
-public sealed class WhatIfRequest
+public sealed record WhatIfRequest
 {
     [JsonPropertyName("date")]
-    public string Date { get; set; } = string.Empty;
+    public required string Date { get; init; }
 
     [JsonPropertyName("changes")]
-    public object? Changes { get; set; }
+    public object? Changes { get; init; }
 }
 
-public sealed class WhatIfResult
+public sealed record WhatIfResult
 {
     [JsonPropertyName("chainScore")]
-    public int? ChainScore { get; set; }
+    public int? ChainScore { get; init; }
 
     [JsonPropertyName("dispatches")]
-    public List<Dispatch>? Dispatches { get; set; }
+    public IReadOnlyList<Dispatch>? Dispatches { get; init; }
 }
