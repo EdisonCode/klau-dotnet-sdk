@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Official .NET SDK for the Klau API — a roll-off waste hauling platform. The SDK wraps REST endpoints into typed C# clients. Zero external dependencies beyond `Microsoft.Extensions.Logging.Abstractions`.
+Official .NET SDK for the Klau API — a roll-off waste hauling platform. The SDK wraps REST endpoints into typed C# clients. Dependencies: `Microsoft.Extensions.Logging.Abstractions` and `Microsoft.Extensions.DependencyInjection.Abstractions`.
 
 ## Build & Test Commands
 
@@ -20,20 +20,32 @@ Target framework: .NET 9.0. Solution file: `Klau.Sdk.sln`.
 
 ## Architecture
 
-### Two-project structure
+### Project structure
 - `src/Klau.Sdk/` — The SDK library (ships as NuGet package `Klau.Sdk`)
 - `tests/Klau.Sdk.Tests/` — xUnit tests using `MockHttpHandler` (no mocking framework)
+- `examples/CsvJobImport/` — Console app: CSV → batch create → optimize → read assignments
+- `examples/WebhookIntegration/` — Kestrel web app: bidirectional sync with webhooks
 
 ### Entry point: `KlauClient`
 `KlauClient` is the single entry point. It owns a `KlauHttpClient` and exposes domain-specific clients as properties (`Jobs`, `Customers`, `Dispatches`, `Orders`, `Materials`, `Storefronts`, `DumpTickets`, `Proposals`, `Divisions`, `Webhooks`, `Auth`).
+
+**Construction patterns** (in preference order):
+1. `services.AddKlauClient(opts => config.GetSection("Klau").Bind(opts))` — ASP.NET Core DI
+2. `KlauClient.CreateFromEnvironment()` — Reads `KLAU_API_KEY` env var
+3. `KlauClient.Create(new KlauClientOptions { ... })` — Explicit options
+4. `new KlauClient("kl_live_...")` — Direct construction
+
+API keys must start with `kl_live_` — validation happens at construction time (fail-fast). The `KlauClientOptions` class controls `BaseUrl`, `TimeoutSeconds`, and `WebhookSecret` in addition to the key.
 
 Enterprise multi-tenant: `KlauClient.ForTenant(id)` returns a `TenantScope` — an isolated set of sub-clients that pass the tenant ID as a per-request header without mutating the parent client. `SetTenant`/`ClearTenant` mutate default headers instead.
 
 ### Shared HTTP layer: `Common/KlauHttpClient`
 All HTTP goes through `KlauHttpClient`. It handles:
 - Auth via Bearer token (API keys starting with `kl_live_`)
+- User-Agent header (`Klau-DotNet-SDK/{version}`)
 - Tenant header injection (`Klau-Tenant-Id`)
 - JSON serialization with `camelCase` properties + `SNAKE_CASE_UPPER` enums
+- Configurable request timeout (default 30s for SDK-created HttpClients)
 - Automatic retry (3 retries with exponential backoff) for 429, 502, 503, 504, and network errors
 - API envelope unwrapping: all responses are `{ "data": T, "meta": { ... } }`
 - Error mapping to `KlauApiException`
@@ -72,6 +84,7 @@ Responses passed to `EnqueueResponse` are automatically wrapped in `{ "data": ..
 
 ## Key Conventions
 
+- API keys must start with `kl_live_` — validated at construction, not at first request
 - All models are `sealed record` with `init`-only properties — never mutable classes
 - Every JSON property gets an explicit `[JsonPropertyName("...")]` attribute (camelCase)
 - Enums serialize as `SNAKE_CASE_UPPER` strings (configured in `KlauHttpClient.JsonOptions`)
@@ -79,3 +92,4 @@ Responses passed to `EnqueueResponse` are automatically wrapped in `{ "data": ..
 - All async methods accept an optional `CancellationToken ct` as last parameter
 - List endpoints that return paginated data use `GetResponseAsync<List<T>>` + `PagedResult<T>`
 - The SDK does NOT dispose a caller-provided `HttpClient` (ownership tracking via `_ownsHttpClient`)
+- Environment variable fallbacks: `KLAU_API_KEY` for the API key, `KLAU_WEBHOOK_SECRET` for webhook signing

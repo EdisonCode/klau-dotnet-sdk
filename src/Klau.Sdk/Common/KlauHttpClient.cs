@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,12 @@ public sealed class KlauHttpClient : IDisposable
     private string? _defaultTenantId;
 
     private const string TenantHeader = "Klau-Tenant-Id";
+
+    private static readonly string SdkVersion =
+        typeof(KlauHttpClient).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion
+        ?? typeof(KlauHttpClient).Assembly.GetName().Version?.ToString()
+        ?? "0.0.0";
 
     /// <summary>
     /// Default retry configuration for transient errors.
@@ -60,6 +67,22 @@ public sealed class KlauHttpClient : IDisposable
         _http.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
         _http.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
+        _http.DefaultRequestHeaders.UserAgent.Add(
+            new ProductInfoHeaderValue("Klau-DotNet-SDK", SdkVersion));
+
+        // Default timeout — overridden by SetTimeout or caller-provided HttpClient
+        if (_ownsHttpClient)
+            _http.Timeout = TimeSpan.FromSeconds(30);
+    }
+
+    /// <summary>
+    /// Set the request timeout. Only applies to SDK-created HttpClients.
+    /// If you provided your own HttpClient, configure its Timeout directly.
+    /// </summary>
+    internal void SetTimeout(TimeSpan timeout)
+    {
+        if (_ownsHttpClient)
+            _http.Timeout = timeout;
     }
 
     internal void SetToken(string token)
@@ -255,8 +278,17 @@ public sealed class KlauHttpClient : IDisposable
             }
         }
 
-        // All retries exhausted — return last response (caller will handle the error)
-        return lastResponse ?? throw new HttpRequestException("All retry attempts exhausted");
+        // All retries exhausted
+        if (lastResponse is not null)
+        {
+            _logger.LogError(
+                "Klau API request failed after {MaxRetries} retries (final status: {StatusCode})",
+                MaxRetries, (int)lastResponse.StatusCode);
+            return lastResponse;
+        }
+
+        _logger.LogError("Klau API request failed after {MaxRetries} retries (no response)", MaxRetries);
+        throw new HttpRequestException("All retry attempts exhausted with no response from the Klau API");
     }
 
     private async Task<T> HandleResponse<T>(HttpResponseMessage response, CancellationToken ct)

@@ -21,13 +21,19 @@ namespace Klau.Sdk;
 ///   var klau = new KlauClient("kl_live_your_api_key_here");
 ///   var board = await klau.Dispatches.GetBoardAsync("2026-03-13");
 ///
+/// From environment variable:
+///   var klau = KlauClient.CreateFromEnvironment();
+///
 /// Enterprise (division-scoped):
-///   using var div = klau.ForTenant("child-company-id");
+///   var div = klau.ForTenant("child-company-id");
 ///   var board = await div.Dispatches.GetBoardAsync("2026-03-13");
 /// </summary>
 public sealed class KlauClient : IDisposable
 {
     internal readonly KlauHttpClient Http;
+
+    /// <summary>Expected prefix for Klau API keys.</summary>
+    internal const string ApiKeyPrefix = "kl_live_";
 
     public AuthClient Auth { get; }
     public JobClient Jobs { get; }
@@ -43,10 +49,10 @@ public sealed class KlauClient : IDisposable
 
     /// <summary>
     /// Create a new Klau API client authenticated with an API key.
-    /// Generate an API key in Settings > Developer in your Klau dashboard.
+    /// Generate an API key in Settings &gt; Developer in your Klau dashboard.
     /// </summary>
     /// <param name="apiKey">Your API key (starts with kl_live_).</param>
-    /// <param name="httpClient">Optional HttpClient for custom configuration (e.g. proxies, timeouts). The SDK will NOT dispose a caller-provided HttpClient.</param>
+    /// <param name="httpClient">Optional HttpClient for custom configuration (e.g. proxies). The SDK will NOT dispose a caller-provided HttpClient.</param>
     /// <param name="logger">Optional logger for retry/error diagnostics.</param>
     public KlauClient(string apiKey, HttpClient? httpClient = null, ILogger? logger = null)
         : this(apiKey, "https://api.getklau.com", httpClient, logger)
@@ -62,6 +68,8 @@ public sealed class KlauClient : IDisposable
     /// <param name="logger">Optional logger for retry/error diagnostics.</param>
     public KlauClient(string apiKey, string baseUrl, HttpClient? httpClient = null, ILogger? logger = null)
     {
+        ValidateApiKey(apiKey);
+
         Http = new KlauHttpClient(baseUrl, httpClient, logger);
 
         Auth = new AuthClient(Http);
@@ -80,8 +88,53 @@ public sealed class KlauClient : IDisposable
     }
 
     /// <summary>
+    /// Create a client from <see cref="KlauClientOptions"/>.
+    /// The API key is resolved from <see cref="KlauClientOptions.ApiKey"/>
+    /// or the <c>KLAU_API_KEY</c> environment variable.
+    /// </summary>
+    public static KlauClient Create(KlauClientOptions options, HttpClient? httpClient = null, ILogger? logger = null)
+    {
+        var apiKey = options.ResolveApiKey();
+        var client = new KlauClient(apiKey, options.BaseUrl, httpClient, logger);
+        client.Http.SetTimeout(TimeSpan.FromSeconds(options.TimeoutSeconds));
+        return client;
+    }
+
+    /// <summary>
+    /// Create a client using the <c>KLAU_API_KEY</c> environment variable.
+    /// This is the recommended pattern for production deployments where
+    /// credentials are injected via environment variables or secrets managers.
+    /// </summary>
+    /// <param name="httpClient">Optional HttpClient for custom configuration.</param>
+    /// <param name="logger">Optional logger for retry/error diagnostics.</param>
+    public static KlauClient CreateFromEnvironment(HttpClient? httpClient = null, ILogger? logger = null)
+    {
+        return Create(new KlauClientOptions(), httpClient, logger);
+    }
+
+    /// <summary>
+    /// Validate that an API key has the expected format.
+    /// Fails fast so integrators catch configuration errors at startup, not at first request.
+    /// </summary>
+    internal static void ValidateApiKey(string apiKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey, nameof(apiKey));
+
+        if (!apiKey.StartsWith(ApiKeyPrefix, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"Invalid Klau API key format. Keys must start with '{ApiKeyPrefix}'. " +
+                "Generate a key at Settings > Developer in your Klau dashboard.",
+                nameof(apiKey));
+        }
+    }
+
+    /// <summary>
     /// Set the default tenant context for all requests made through this client.
     /// Enterprise API keys (parent company) can operate on any child tenant.
+    ///
+    /// For concurrent multi-tenant use, prefer <see cref="ForTenant"/> which
+    /// creates an isolated scope without mutating this client's state.
     /// </summary>
     /// <param name="tenantId">The company ID of the child tenant to operate on.</param>
     public void SetTenant(string tenantId) => Http.SetDefaultTenantId(tenantId);

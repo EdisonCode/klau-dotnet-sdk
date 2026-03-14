@@ -29,26 +29,12 @@ using WebhookIntegration.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── Configuration ───────────────────────────────────────────────────────────
-
-var klauConfig = builder.Configuration.GetSection("Klau");
-var apiKey = klauConfig["ApiKey"]
-    ?? Environment.GetEnvironmentVariable("KLAU_API_KEY")
-    ?? throw new InvalidOperationException(
-        "Set Klau:ApiKey in appsettings.json or the KLAU_API_KEY environment variable.");
-
-var webhookSecret = klauConfig["WebhookSecret"]
-    ?? Environment.GetEnvironmentVariable("KLAU_WEBHOOK_SECRET")
-    ?? "";
-
 // ── Services ────────────────────────────────────────────────────────────────
 
-// Register the Klau SDK client — one instance shared across the app.
-builder.Services.AddSingleton(_ => new KlauClient(apiKey));
-
-// Register the webhook validator (empty secret = validation disabled for local dev).
-if (!string.IsNullOrEmpty(webhookSecret))
-    builder.Services.AddSingleton(new KlauWebhookValidator(webhookSecret));
+// Register Klau SDK — reads API key from Klau:ApiKey config or KLAU_API_KEY env var.
+// Also registers KlauWebhookValidator if a webhook secret is configured.
+builder.Services.AddKlauClient(options =>
+    builder.Configuration.GetSection("Klau").Bind(options));
 
 // Register your database.
 // ┌──────────────────────────────────────────────────────────────────────┐

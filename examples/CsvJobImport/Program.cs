@@ -17,11 +17,6 @@ using Klau.Sdk.Dispatches;
 
 // ── Configuration ───────────────────────────────────────────────────────────
 
-var apiKey = Environment.GetEnvironmentVariable("KLAU_API_KEY")
-    ?? throw new InvalidOperationException(
-        "Set the KLAU_API_KEY environment variable. " +
-        "Generate one at Settings > Developer in your Klau dashboard.");
-
 var csvPath = args.Length > 0 ? args[0] : "sample-orders.csv";
 var date = args.Length > 1 ? args[1] : DateTime.Today.ToString("yyyy-MM-dd");
 
@@ -43,7 +38,9 @@ foreach (var order in orders)
 
 Console.WriteLine($"\nCreating {orders.Count} jobs in Klau for {date}...");
 
-using var klau = new KlauClient(apiKey);
+// Reads KLAU_API_KEY from environment. Validates the key format at startup
+// so you get a clear error immediately, not on the first API call.
+using var klau = KlauClient.CreateFromEnvironment();
 
 var jobRequests = orders
     .Select(o => new CreateJobRequest
@@ -60,7 +57,16 @@ var jobRequests = orders
     })
     .ToList();
 
-var result = await klau.Jobs.CreateBatchAsync(jobRequests);
+BatchCreateResult result;
+try
+{
+    result = await klau.Jobs.CreateBatchAsync(jobRequests);
+}
+catch (KlauApiException ex)
+{
+    Console.Error.WriteLine($"Failed to create jobs: {ex.ErrorCode} - {ex.Message} (HTTP {ex.StatusCode})");
+    return;
+}
 
 Console.WriteLine($"  Created: {result.Created.Count}");
 if (result.Errors.Count > 0)
@@ -70,6 +76,12 @@ if (result.Errors.Count > 0)
         Console.WriteLine($"    Order {orders[err.Index].OrderNumber}: {err.Code} - {err.Message}");
 }
 
+if (result.Created.Count == 0)
+{
+    Console.Error.WriteLine("No jobs were created — nothing to optimize.");
+    return;
+}
+
 // Build a lookup from Klau job ID → original order number
 var jobToOrder = result.Created.ToDictionary(c => c.JobId, c => c.ExternalId ?? "?");
 
@@ -77,13 +89,23 @@ var jobToOrder = result.Created.ToDictionary(c => c.JobId, c => c.ExternalId ?? 
 
 Console.WriteLine($"\nOptimizing dispatch for {date}...");
 
-var optimization = await klau.Dispatches.OptimizeAndWaitAsync(
-    new OptimizeRequest
-    {
-        Date = date,
-        OptimizationMode = OptimizationMode.FULL_DAY,
-    },
-    pollInterval: TimeSpan.FromSeconds(3));
+OptimizationJob optimization;
+try
+{
+    optimization = await klau.Dispatches.OptimizeAndWaitAsync(
+        new OptimizeRequest
+        {
+            Date = date,
+            OptimizationMode = OptimizationMode.FULL_DAY,
+        },
+        pollInterval: TimeSpan.FromSeconds(3));
+}
+catch (KlauApiException ex)
+{
+    Console.Error.WriteLine($"Optimization failed: {ex.ErrorCode} - {ex.Message} (HTTP {ex.StatusCode})");
+    Console.WriteLine("Jobs were created successfully — you can run optimization from the Klau dashboard.");
+    return;
+}
 
 switch (optimization.Status)
 {
