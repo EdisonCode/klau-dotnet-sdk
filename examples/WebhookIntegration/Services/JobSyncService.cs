@@ -39,6 +39,10 @@ public sealed class JobSyncService : BackgroundService
         _logger.LogInformation(
             "Job sync service started. Polling every {Interval} minutes", _pollInterval.TotalMinutes);
 
+        // Check dispatch readiness on startup — surfaces missing configuration
+        // (no drivers, trucks, yards, dump sites) before the first sync cycle.
+        await CheckReadinessAsync(ct);
+
         // Run immediately on startup, then on interval
         while (!ct.IsCancellationRequested)
         {
@@ -52,6 +56,25 @@ public sealed class JobSyncService : BackgroundService
             }
 
             await Task.Delay(_pollInterval, ct);
+        }
+    }
+
+    /// <summary>
+    /// Run the dispatch readiness check and log any missing configuration.
+    /// This helps integration teams identify setup issues at startup rather
+    /// than discovering them when optimization silently produces poor results.
+    /// </summary>
+    private async Task CheckReadinessAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _services.CreateScope();
+            var klau = scope.ServiceProvider.GetRequiredService<KlauClient>();
+            await klau.Readiness.CheckAndLogAsync(_logger, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Readiness check failed — continuing with sync");
         }
     }
 

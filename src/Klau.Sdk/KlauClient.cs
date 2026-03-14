@@ -2,14 +2,19 @@ using Klau.Sdk.Authentication;
 using Klau.Sdk.Common;
 using Klau.Sdk.Customers;
 using Klau.Sdk.Dispatches;
+using Klau.Sdk.Drivers;
+using Klau.Sdk.DumpSites;
 using Klau.Sdk.DumpTickets;
 using Klau.Sdk.Jobs;
 using Klau.Sdk.Materials;
 using Klau.Sdk.Orders;
 using Klau.Sdk.Divisions;
 using Klau.Sdk.Proposals;
+using Klau.Sdk.Readiness;
 using Klau.Sdk.Storefronts;
+using Klau.Sdk.Trucks;
 using Klau.Sdk.Webhooks;
+using Klau.Sdk.Yards;
 using Microsoft.Extensions.Logging;
 
 namespace Klau.Sdk;
@@ -46,6 +51,11 @@ public sealed class KlauClient : IDisposable
     public ProposalClient Proposals { get; }
     public DivisionClient Divisions { get; }
     public WebhookClient Webhooks { get; }
+    public ReadinessClient Readiness { get; }
+    public DriverClient Drivers { get; }
+    public TruckClient Trucks { get; }
+    public YardClient Yards { get; }
+    public DumpSiteClient DumpSites { get; }
 
     /// <summary>
     /// Create a new Klau API client authenticated with an API key.
@@ -83,6 +93,11 @@ public sealed class KlauClient : IDisposable
         Proposals = new ProposalClient(Http);
         Divisions = new DivisionClient(Http);
         Webhooks = new WebhookClient(Http);
+        Readiness = new ReadinessClient(Http);
+        Drivers = new DriverClient(Http);
+        Trucks = new TruckClient(Http);
+        Yards = new YardClient(Http);
+        DumpSites = new DumpSiteClient(Http);
 
         Http.SetToken(apiKey);
     }
@@ -177,6 +192,11 @@ public sealed class TenantScope
     public DumpTicketClient DumpTickets { get; }
     public OrderClient Orders { get; }
     public ProposalClient Proposals { get; }
+    public ReadinessClient Readiness { get; }
+    public DriverClient Drivers { get; }
+    public TruckClient Trucks { get; }
+    public YardClient Yards { get; }
+    public DumpSiteClient DumpSites { get; }
 
     internal TenantScope(KlauClient client, string tenantId)
     {
@@ -191,5 +211,10 @@ public sealed class TenantScope
         DumpTickets = new DumpTicketClient(http, tenantId);
         Orders = new OrderClient(http, tenantId);
         Proposals = new ProposalClient(http, tenantId);
+        Readiness = new ReadinessClient(http, tenantId);
+        Drivers = new DriverClient(http, tenantId);
+        Trucks = new TruckClient(http, tenantId);
+        Yards = new YardClient(http, tenantId);
+        DumpSites = new DumpSiteClient(http, tenantId);
     }
 }

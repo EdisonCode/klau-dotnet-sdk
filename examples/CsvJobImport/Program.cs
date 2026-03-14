@@ -14,11 +14,34 @@ using Klau.Sdk;
 using Klau.Sdk.Common;
 using Klau.Sdk.Jobs;
 using Klau.Sdk.Dispatches;
+using Microsoft.Extensions.Logging;
 
 // ── Configuration ───────────────────────────────────────────────────────────
 
 var csvPath = args.Length > 0 ? args[0] : "sample-orders.csv";
 var date = args.Length > 1 ? args[1] : DateTime.Today.ToString("yyyy-MM-dd");
+
+// ── Step 0: Check dispatch readiness ────────────────────────────────────────
+// Catches missing configuration (no drivers, no trucks, no yards, etc.)
+// BEFORE you spend time creating jobs and waiting for optimization.
+
+Console.WriteLine("Checking dispatch readiness...\n");
+
+using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+var logger = loggerFactory.CreateLogger("CsvJobImport");
+
+// Reads KLAU_API_KEY from environment. Validates the key format at startup
+// so you get a clear error immediately, not on the first API call.
+using var klau = KlauClient.CreateFromEnvironment(logger: logger);
+
+var readiness = await klau.Readiness.CheckAndLogAsync(logger);
+if (!readiness.CanGoLive)
+{
+    Console.Error.WriteLine(
+        "\nDispatch readiness check failed. Fix the issues above before importing jobs.\n" +
+        "See the Klau SDK README for how to push drivers, trucks, yards, and dump sites.");
+    return;
+}
 
 // ── Step 1: Parse the CSV ───────────────────────────────────────────────────
 
@@ -38,9 +61,6 @@ foreach (var order in orders)
 
 Console.WriteLine($"\nCreating {orders.Count} jobs in Klau for {date}...");
 
-// Reads KLAU_API_KEY from environment. Validates the key format at startup
-// so you get a clear error immediately, not on the first API call.
-using var klau = KlauClient.CreateFromEnvironment();
 
 var jobRequests = orders
     .Select(o => new CreateJobRequest
