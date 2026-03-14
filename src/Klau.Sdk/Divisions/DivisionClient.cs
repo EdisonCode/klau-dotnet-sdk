@@ -13,7 +13,7 @@ public sealed class DivisionClient
     /// </summary>
     public async Task<List<Division>> ListAsync(CancellationToken ct = default)
     {
-        return await _http.GetAsync<List<Division>>("api/v1/divisions", ct);
+        return await _http.GetAsync<List<Division>>("api/v1/divisions", tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -21,7 +21,7 @@ public sealed class DivisionClient
     /// </summary>
     public async Task<DivisionDetail> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DivisionDetail>($"api/v1/divisions/{id}", ct);
+        return await _http.GetAsync<DivisionDetail>($"api/v1/divisions/{id}", tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -29,7 +29,7 @@ public sealed class DivisionClient
     /// </summary>
     public async Task<Division> CreateAsync(CreateDivisionRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Division>("api/v1/divisions", request, ct);
+        return await _http.PostAsync<Division>("api/v1/divisions", request, tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -37,7 +37,7 @@ public sealed class DivisionClient
     /// </summary>
     public async Task<Division> UpdateAsync(string id, UpdateDivisionRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Division>($"api/v1/divisions/{id}", request, ct);
+        return await _http.PatchAsync<Division>($"api/v1/divisions/{id}", request, tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ public sealed class DivisionClient
     /// </summary>
     public async Task<UsageSummary> GetUsageSummaryAsync(CancellationToken ct = default)
     {
-        return await _http.GetAsync<UsageSummary>("api/v1/divisions/usage-summary", ct);
+        return await _http.GetAsync<UsageSummary>("api/v1/divisions/usage-summary", tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -53,7 +53,7 @@ public sealed class DivisionClient
     /// </summary>
     public async Task<DivisionUsage> GetUsageAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DivisionUsage>($"api/v1/divisions/{id}/usage", ct);
+        return await _http.GetAsync<DivisionUsage>($"api/v1/divisions/{id}/usage", tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public sealed class DivisionClient
     /// </summary>
     public async Task<Invitation> InviteUserAsync(string id, InviteUserRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Invitation>($"api/v1/divisions/{id}/invite", request, ct);
+        return await _http.PostAsync<Invitation>($"api/v1/divisions/{id}/invite", request, tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -70,6 +70,6 @@ public sealed class DivisionClient
     /// </summary>
     public async Task<List<Division>> ListCorporateAsync(CancellationToken ct = default)
     {
-        return await _http.GetAsync<List<Division>>("api/v1/corporate/divisions", ct);
+        return await _http.GetAsync<List<Division>>("api/v1/corporate/divisions", tenantOverride: null, ct);
     }
 }

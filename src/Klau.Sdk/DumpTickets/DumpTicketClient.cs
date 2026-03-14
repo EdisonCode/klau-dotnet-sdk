@@ -5,15 +5,20 @@ namespace Klau.Sdk.DumpTickets;
 public sealed class DumpTicketClient
 {
     private readonly KlauHttpClient _http;
+    private readonly string? _tenantId;
 
-    internal DumpTicketClient(KlauHttpClient http) => _http = http;
+    internal DumpTicketClient(KlauHttpClient http, string? tenantId = null)
+    {
+        _http = http;
+        _tenantId = tenantId;
+    }
 
     /// <summary>
     /// Create a dump ticket from manual entry.
     /// </summary>
     public async Task<DumpTicket> CreateAsync(CreateDumpTicketRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<DumpTicket>("api/v1/dump-tickets", request, ct);
+        return await _http.PostAsync<DumpTicket>("api/v1/dump-tickets", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -38,7 +43,7 @@ public sealed class DumpTicketClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<DumpTicket>>(path, ct);
+        var response = await _http.GetResponseAsync<List<DumpTicket>>(path, _tenantId, ct);
         return new PagedResult<DumpTicket>(response.Data, response.Meta);
     }
 
@@ -47,7 +52,7 @@ public sealed class DumpTicketClient
     /// </summary>
     public async Task<DumpTicket> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DumpTicket>($"api/v1/dump-tickets/{id}", ct);
+        return await _http.GetAsync<DumpTicket>($"api/v1/dump-tickets/{id}", _tenantId, ct);
     }
 
     /// <summary>
@@ -55,7 +60,7 @@ public sealed class DumpTicketClient
     /// </summary>
     public async Task<DumpTicket> VerifyAsync(string id, VerifyDumpTicketRequest? request = null, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<DumpTicket>($"api/v1/dump-tickets/{id}/verify", request ?? new(), ct);
+        return await _http.PatchAsync<DumpTicket>($"api/v1/dump-tickets/{id}/verify", request ?? new(), _tenantId, ct);
     }
 
     /// <summary>
@@ -63,6 +68,6 @@ public sealed class DumpTicketClient
     /// </summary>
     public async Task<DumpTicket> GetForJobAsync(string jobId, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DumpTicket>($"api/v1/jobs/{jobId}/dump-ticket", ct);
+        return await _http.GetAsync<DumpTicket>($"api/v1/jobs/{jobId}/dump-ticket", _tenantId, ct);
     }
 }

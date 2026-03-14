@@ -5,15 +5,20 @@ namespace Klau.Sdk.Orders;
 public sealed class OrderClient
 {
     private readonly KlauHttpClient _http;
+    private readonly string? _tenantId;
 
-    internal OrderClient(KlauHttpClient http) => _http = http;
+    internal OrderClient(KlauHttpClient http, string? tenantId = null)
+    {
+        _http = http;
+        _tenantId = tenantId;
+    }
 
     /// <summary>
     /// Get order tracking status (public, no auth required).
     /// </summary>
     public async Task<OrderTracking> GetStatusAsync(string orderId, CancellationToken ct = default)
     {
-        return await _http.GetAsync<OrderTracking>($"api/v1/orders/{orderId}/status", ct);
+        return await _http.GetAsync<OrderTracking>($"api/v1/orders/{orderId}/status", _tenantId, ct);
     }
 
     /// <summary>
@@ -21,7 +26,7 @@ public sealed class OrderClient
     /// </summary>
     public async Task RequestPickupAsync(string orderId, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/orders/{orderId}/request-pickup", ct: ct);
+        await _http.PostAsync($"api/v1/orders/{orderId}/request-pickup", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -29,7 +34,7 @@ public sealed class OrderClient
     /// </summary>
     public async Task<List<CustomerOrder>> ListMineAsync(CancellationToken ct = default)
     {
-        return await _http.GetAsync<List<CustomerOrder>>("api/v1/orders/mine", ct);
+        return await _http.GetAsync<List<CustomerOrder>>("api/v1/orders/mine", _tenantId, ct);
     }
 
     /// <summary>
@@ -37,7 +42,7 @@ public sealed class OrderClient
     /// </summary>
     public async Task<List<PendingSettlement>> ListPendingSettlementsAsync(CancellationToken ct = default)
     {
-        return await _http.GetAsync<List<PendingSettlement>>("api/v1/storefronts/settlements", ct);
+        return await _http.GetAsync<List<PendingSettlement>>("api/v1/storefronts/settlements", _tenantId, ct);
     }
 
     /// <summary>
@@ -51,6 +56,7 @@ public sealed class OrderClient
         return await _http.PostAsync<SettlementResult>(
             $"api/v1/storefronts/settlements/{orderId}/settle",
             request ?? new(),
+            _tenantId,
             ct);
     }
 }

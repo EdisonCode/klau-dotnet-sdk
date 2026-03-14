@@ -5,15 +5,20 @@ namespace Klau.Sdk.Storefronts;
 public sealed class StorefrontClient
 {
     private readonly KlauHttpClient _http;
+    private readonly string? _tenantId;
 
-    internal StorefrontClient(KlauHttpClient http) => _http = http;
+    internal StorefrontClient(KlauHttpClient http, string? tenantId = null)
+    {
+        _http = http;
+        _tenantId = tenantId;
+    }
 
     /// <summary>
     /// Get the public storefront configuration and catalog by slug (no auth required).
     /// </summary>
     public async Task<StorefrontConfig> GetConfigAsync(string slug, CancellationToken ct = default)
     {
-        return await _http.GetAsync<StorefrontConfig>($"api/v1/storefronts/{slug}/config", ct);
+        return await _http.GetAsync<StorefrontConfig>($"api/v1/storefronts/{slug}/config", _tenantId, ct);
     }
 
     /// <summary>
@@ -24,7 +29,7 @@ public sealed class StorefrontClient
         SubmitOrderRequest request,
         CancellationToken ct = default)
     {
-        return await _http.PostAsync<OrderConfirmation>($"api/v1/storefronts/{slug}/orders", request, ct);
+        return await _http.PostAsync<OrderConfirmation>($"api/v1/storefronts/{slug}/orders", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -36,7 +41,7 @@ public sealed class StorefrontClient
         CancellationToken ct = default)
     {
         return await _http.PostAsync<AvailabilityResult>(
-            $"api/v1/storefronts/{slug}/check-availability", request, ct);
+            $"api/v1/storefronts/{slug}/check-availability", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -44,7 +49,7 @@ public sealed class StorefrontClient
     /// </summary>
     public async Task<Storefront> GetOwnAsync(CancellationToken ct = default)
     {
-        return await _http.GetAsync<Storefront>("api/v1/storefronts/", ct);
+        return await _http.GetAsync<Storefront>("api/v1/storefronts/", _tenantId, ct);
     }
 
     /// <summary>
@@ -52,7 +57,7 @@ public sealed class StorefrontClient
     /// </summary>
     public async Task<Storefront> SetupAsync(SetupStorefrontRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Storefront>("api/v1/storefronts/setup-wizard", request, ct);
+        return await _http.PostAsync<Storefront>("api/v1/storefronts/setup-wizard", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -60,7 +65,7 @@ public sealed class StorefrontClient
     /// </summary>
     public async Task<Storefront> UpdateAsync(UpdateStorefrontRequest request, CancellationToken ct = default)
     {
-        return await _http.PutAsync<Storefront>("api/v1/storefronts/", request, ct);
+        return await _http.PutAsync<Storefront>("api/v1/storefronts/", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -68,7 +73,7 @@ public sealed class StorefrontClient
     /// </summary>
     public async Task ActivateAsync(CancellationToken ct = default)
     {
-        await _http.PostAsync("api/v1/storefronts/activate", ct: ct);
+        await _http.PostAsync("api/v1/storefronts/activate", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -76,7 +81,7 @@ public sealed class StorefrontClient
     /// </summary>
     public async Task PauseAsync(CancellationToken ct = default)
     {
-        await _http.PostAsync("api/v1/storefronts/pause", ct: ct);
+        await _http.PostAsync("api/v1/storefronts/pause", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -91,7 +96,7 @@ public sealed class StorefrontClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<StorefrontOrder>>(path, ct);
+        var response = await _http.GetResponseAsync<List<StorefrontOrder>>(path, _tenantId, ct);
         return new PagedResult<StorefrontOrder>(response.Data, response.Meta);
     }
 }

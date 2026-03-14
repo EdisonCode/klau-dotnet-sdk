@@ -1,20 +1,45 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Klau.Sdk.Common;
 
 /// <summary>
 /// Shared HTTP client for all Klau API calls. Handles authentication,
-/// tenant context, serialization, and error mapping.
+/// tenant context, serialization, retry logic, and error mapping.
 /// </summary>
 public sealed class KlauHttpClient : IDisposable
 {
     private readonly HttpClient _http;
+    private readonly bool _ownsHttpClient;
+    private readonly ILogger _logger;
     private string? _token;
+    private string? _defaultTenantId;
 
     private const string TenantHeader = "Klau-Tenant-Id";
+
+    /// <summary>
+    /// Default retry configuration for transient errors.
+    /// Retries on 429 (rate limit), 502, 503, 504, and network errors.
+    /// </summary>
+    private const int MaxRetries = 3;
+    private static readonly TimeSpan[] RetryDelays = [
+        TimeSpan.FromMilliseconds(500),
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+    ];
+
+    private static readonly HashSet<HttpStatusCode> RetryableStatusCodes =
+    [
+        HttpStatusCode.TooManyRequests,      // 429
+        HttpStatusCode.BadGateway,           // 502
+        HttpStatusCode.ServiceUnavailable,   // 503
+        HttpStatusCode.GatewayTimeout,       // 504
+    ];
 
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,9 +48,11 @@ public sealed class KlauHttpClient : IDisposable
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper) }
     };
 
-    public KlauHttpClient(string baseUrl, HttpClient? httpClient = null)
+    public KlauHttpClient(string baseUrl, HttpClient? httpClient = null, ILogger? logger = null)
     {
+        _ownsHttpClient = httpClient is null;
         _http = httpClient ?? new HttpClient();
+        _logger = logger ?? NullLogger.Instance;
         _http.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
         _http.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
@@ -47,11 +74,12 @@ public sealed class KlauHttpClient : IDisposable
     internal string? Token => _token;
 
     /// <summary>
-    /// Set the tenant context for sub-tenant operations.
-    /// Parent company API keys can operate on child tenants by setting this header.
+    /// Set the default tenant context for all requests.
     /// </summary>
-    internal void SetTenantId(string? tenantId)
+    internal void SetDefaultTenantId(string? tenantId)
     {
+        _defaultTenantId = tenantId;
+        // Update default headers for non-scoped requests
         _http.DefaultRequestHeaders.Remove(TenantHeader);
         if (tenantId is not null)
         {
@@ -59,54 +87,172 @@ public sealed class KlauHttpClient : IDisposable
         }
     }
 
-    internal async Task<T> GetAsync<T>(string path, CancellationToken ct = default)
+    internal async Task<T> GetAsync<T>(string path, string? tenantOverride = null, CancellationToken ct = default)
     {
-        var response = await _http.GetAsync(path, ct);
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, path);
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
         return await HandleResponse<T>(response, ct);
     }
 
-    internal async Task<ApiResponse<T>> GetResponseAsync<T>(string path, CancellationToken ct = default)
+    internal async Task<ApiResponse<T>> GetResponseAsync<T>(string path, string? tenantOverride = null, CancellationToken ct = default)
     {
-        var response = await _http.GetAsync(path, ct);
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, path);
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
         return await HandleWrappedResponse<T>(response, ct);
     }
 
-    internal async Task<T> PostAsync<T>(string path, object? body = null, CancellationToken ct = default)
+    internal async Task<T> PostAsync<T>(string path, object? body = null, string? tenantOverride = null, CancellationToken ct = default)
     {
-        var response = await _http.PostAsJsonAsync(path, body, JsonOptions, ct);
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, path);
+            if (body is not null) req.Content = JsonContent.Create(body, options: JsonOptions);
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
         return await HandleResponse<T>(response, ct);
     }
 
-    internal async Task PostAsync(string path, object? body = null, CancellationToken ct = default)
+    internal async Task PostAsync(string path, object? body = null, string? tenantOverride = null, CancellationToken ct = default)
     {
-        var response = await _http.PostAsJsonAsync(path, body, JsonOptions, ct);
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, path);
+            if (body is not null) req.Content = JsonContent.Create(body, options: JsonOptions);
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
         await EnsureSuccess(response, ct);
     }
 
-    internal async Task<T> PatchAsync<T>(string path, object body, CancellationToken ct = default)
+    internal async Task<T> PatchAsync<T>(string path, object body, string? tenantOverride = null, CancellationToken ct = default)
     {
-        var content = JsonContent.Create(body, options: JsonOptions);
-        var response = await _http.PatchAsync(path, content, ct);
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Patch, path)
+            {
+                Content = JsonContent.Create(body, options: JsonOptions)
+            };
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
         return await HandleResponse<T>(response, ct);
     }
 
-    internal async Task<T> PutAsync<T>(string path, object body, CancellationToken ct = default)
+    internal async Task<T> PutAsync<T>(string path, object body, string? tenantOverride = null, CancellationToken ct = default)
     {
-        var content = JsonContent.Create(body, options: JsonOptions);
-        var response = await _http.PutAsync(path, content, ct);
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Put, path)
+            {
+                Content = JsonContent.Create(body, options: JsonOptions)
+            };
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
         return await HandleResponse<T>(response, ct);
     }
 
-    internal async Task DeleteAsync(string path, CancellationToken ct = default)
+    internal async Task DeleteAsync(string path, string? tenantOverride = null, CancellationToken ct = default)
     {
-        var response = await _http.DeleteAsync(path, ct);
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Delete, path);
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
         await EnsureSuccess(response, ct);
     }
 
-    internal async Task<T> DeleteAsync<T>(string path, CancellationToken ct = default)
+    internal async Task<T> DeleteAsync<T>(string path, string? tenantOverride = null, CancellationToken ct = default)
     {
-        var response = await _http.DeleteAsync(path, ct);
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Delete, path);
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
         return await HandleResponse<T>(response, ct);
+    }
+
+    /// <summary>
+    /// Apply tenant header to a per-request message. Scoped tenant overrides the default.
+    /// </summary>
+    private void ApplyTenantHeader(HttpRequestMessage request, string? tenantOverride)
+    {
+        var tenantId = tenantOverride ?? _defaultTenantId;
+        if (tenantId is not null)
+        {
+            request.Headers.Remove(TenantHeader);
+            request.Headers.Add(TenantHeader, tenantId);
+        }
+    }
+
+    /// <summary>
+    /// Send an HTTP request with automatic retry for transient errors.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendWithRetry(
+        Func<HttpRequestMessage> requestFactory,
+        CancellationToken ct)
+    {
+        HttpResponseMessage? lastResponse = null;
+
+        for (int attempt = 0; attempt <= MaxRetries; attempt++)
+        {
+            if (attempt > 0)
+            {
+                var delay = RetryDelays[Math.Min(attempt - 1, RetryDelays.Length - 1)];
+
+                // Respect Retry-After header from 429 responses
+                if (lastResponse?.Headers.RetryAfter?.Delta is { } retryAfter)
+                {
+                    delay = retryAfter > delay ? retryAfter : delay;
+                }
+
+                _logger.LogWarning(
+                    "Klau API request failed (attempt {Attempt}/{Max}), retrying in {Delay}ms",
+                    attempt, MaxRetries + 1, delay.TotalMilliseconds);
+
+                await Task.Delay(delay, ct);
+            }
+
+            try
+            {
+                var request = requestFactory();
+                lastResponse = await _http.SendAsync(request, ct);
+
+                if (!RetryableStatusCodes.Contains(lastResponse.StatusCode))
+                {
+                    return lastResponse;
+                }
+            }
+            catch (HttpRequestException ex) when (attempt < MaxRetries)
+            {
+                _logger.LogWarning(ex,
+                    "Klau API network error (attempt {Attempt}/{Max})",
+                    attempt + 1, MaxRetries + 1);
+                lastResponse = null;
+            }
+            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested && attempt < MaxRetries)
+            {
+                // Timeout (not user cancellation)
+                _logger.LogWarning(ex,
+                    "Klau API timeout (attempt {Attempt}/{Max})",
+                    attempt + 1, MaxRetries + 1);
+                lastResponse = null;
+            }
+        }
+
+        // All retries exhausted — return last response (caller will handle the error)
+        return lastResponse ?? throw new HttpRequestException("All retry attempts exhausted");
     }
 
     private async Task<T> HandleResponse<T>(HttpResponseMessage response, CancellationToken ct)
@@ -168,5 +314,8 @@ public sealed class KlauHttpClient : IDisposable
             (int)response.StatusCode);
     }
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+        if (_ownsHttpClient) _http.Dispose();
+    }
 }

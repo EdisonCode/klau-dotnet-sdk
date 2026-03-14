@@ -65,6 +65,9 @@ public sealed class Job
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
 
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; set; }
+
     [JsonPropertyName("orderId")]
     public string? OrderId { get; set; }
 
@@ -118,6 +121,12 @@ public sealed class CreateJobRequest
 
     [JsonPropertyName("containerNumber")]
     public string? ContainerNumber { get; set; }
+
+    /// <summary>
+    /// External system ID for bidirectional sync (e.g. your RMO order ID).
+    /// </summary>
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; set; }
 }
 
 public sealed class UpdateJobRequest

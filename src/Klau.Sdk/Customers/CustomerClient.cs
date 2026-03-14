@@ -5,8 +5,13 @@ namespace Klau.Sdk.Customers;
 public sealed class CustomerClient
 {
     private readonly KlauHttpClient _http;
+    private readonly string? _tenantId;
 
-    internal CustomerClient(KlauHttpClient http) => _http = http;
+    internal CustomerClient(KlauHttpClient http, string? tenantId = null)
+    {
+        _http = http;
+        _tenantId = tenantId;
+    }
 
     /// <summary>
     /// List customers with optional search filter.
@@ -24,7 +29,7 @@ public sealed class CustomerClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<Customer>>(path, ct);
+        var response = await _http.GetResponseAsync<List<Customer>>(path, _tenantId, ct);
         return new PagedResult<Customer>(response.Data, response.Meta);
     }
 
@@ -33,7 +38,7 @@ public sealed class CustomerClient
     /// </summary>
     public async Task<Customer> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Customer>($"api/v1/customers/{id}", ct);
+        return await _http.GetAsync<Customer>($"api/v1/customers/{id}", _tenantId, ct);
     }
 
     /// <summary>
@@ -41,7 +46,7 @@ public sealed class CustomerClient
     /// </summary>
     public async Task<Customer360> Get360Async(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Customer360>($"api/v1/customers/{id}/360", ct);
+        return await _http.GetAsync<Customer360>($"api/v1/customers/{id}/360", _tenantId, ct);
     }
 
     /// <summary>
@@ -49,7 +54,7 @@ public sealed class CustomerClient
     /// </summary>
     public async Task<Customer> CreateAsync(CreateCustomerRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Customer>("api/v1/customers", request, ct);
+        return await _http.PostAsync<Customer>("api/v1/customers", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -57,7 +62,7 @@ public sealed class CustomerClient
     /// </summary>
     public async Task<Customer> UpdateAsync(string id, UpdateCustomerRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Customer>($"api/v1/customers/{id}", request, ct);
+        return await _http.PatchAsync<Customer>($"api/v1/customers/{id}", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -65,7 +70,7 @@ public sealed class CustomerClient
     /// </summary>
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/customers/{id}", ct);
+        await _http.DeleteAsync($"api/v1/customers/{id}", _tenantId, ct);
     }
 
     /// <summary>
@@ -73,6 +78,6 @@ public sealed class CustomerClient
     /// </summary>
     public async Task<List<Site>> ListSitesAsync(string customerId, CancellationToken ct = default)
     {
-        return await _http.GetAsync<List<Site>>($"api/v1/customers/{customerId}/sites", ct);
+        return await _http.GetAsync<List<Site>>($"api/v1/customers/{customerId}/sites", _tenantId, ct);
     }
 }

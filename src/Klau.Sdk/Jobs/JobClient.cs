@@ -5,8 +5,13 @@ namespace Klau.Sdk.Jobs;
 public sealed class JobClient
 {
     private readonly KlauHttpClient _http;
+    private readonly string? _tenantId;
 
-    internal JobClient(KlauHttpClient http) => _http = http;
+    internal JobClient(KlauHttpClient http, string? tenantId = null)
+    {
+        _http = http;
+        _tenantId = tenantId;
+    }
 
     /// <summary>
     /// List jobs with optional filters.
@@ -26,7 +31,7 @@ public sealed class JobClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<Job>>(path, ct);
+        var response = await _http.GetResponseAsync<List<Job>>(path, _tenantId, ct);
         return new PagedResult<Job>(response.Data, response.Meta);
     }
 
@@ -35,15 +40,16 @@ public sealed class JobClient
     /// </summary>
     public async Task<Job> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Job>($"api/v1/jobs/{id}", ct);
+        return await _http.GetAsync<Job>($"api/v1/jobs/{id}", _tenantId, ct);
     }
 
     /// <summary>
-    /// Create a new job.
+    /// Create a new job. When createMissing is true, unknown customers and sites
+    /// referenced by name will be auto-created as stubs.
     /// </summary>
     public async Task<Job> CreateAsync(CreateJobRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>("api/v1/jobs", request, ct);
+        return await _http.PostAsync<Job>("api/v1/jobs", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -51,7 +57,7 @@ public sealed class JobClient
     /// </summary>
     public async Task<Job> UpdateAsync(string id, UpdateJobRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Job>($"api/v1/jobs/{id}", request, ct);
+        return await _http.PatchAsync<Job>($"api/v1/jobs/{id}", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -59,7 +65,7 @@ public sealed class JobClient
     /// </summary>
     public async Task<Job> AssignAsync(string id, AssignJobRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/assign", request, ct);
+        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/assign", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -67,7 +73,7 @@ public sealed class JobClient
     /// </summary>
     public async Task<Job> UnassignAsync(string id, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/unassign", ct);
+        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/unassign", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -75,7 +81,7 @@ public sealed class JobClient
     /// </summary>
     public async Task CancelAsync(string id, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/jobs/{id}/cancel", ct: ct);
+        await _http.PostAsync($"api/v1/jobs/{id}/cancel", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -83,7 +89,7 @@ public sealed class JobClient
     /// </summary>
     public async Task<Job> StartAsync(string id, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/start", ct: ct);
+        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/start", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -91,7 +97,7 @@ public sealed class JobClient
     /// </summary>
     public async Task<Job> CompleteAsync(string id, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/complete", ct: ct);
+        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/complete", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -99,6 +105,6 @@ public sealed class JobClient
     /// </summary>
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/jobs/{id}", ct);
+        await _http.DeleteAsync($"api/v1/jobs/{id}", _tenantId, ct);
     }
 }

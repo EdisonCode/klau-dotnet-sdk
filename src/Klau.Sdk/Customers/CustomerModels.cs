@@ -10,6 +10,9 @@ public sealed class Customer
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; set; }
+
     [JsonPropertyName("contactName")]
     public string? ContactName { get; set; }
 
@@ -81,6 +84,9 @@ public sealed class Site
 
     [JsonPropertyName("accessNotes")]
     public string? AccessNotes { get; set; }
+
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; set; }
 
     [JsonPropertyName("customerId")]
     public string CustomerId { get; set; } = string.Empty;

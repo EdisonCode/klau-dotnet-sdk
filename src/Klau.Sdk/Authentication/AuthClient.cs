@@ -17,6 +17,7 @@ public sealed class AuthClient
         var result = await _http.PostAsync<LoginResult>(
             "api/v1/auth/login",
             new { email, password },
+            tenantOverride: null,
             ct);
 
         _http.SetToken(result.Token);
@@ -28,7 +29,7 @@ public sealed class AuthClient
     /// </summary>
     public async Task<string> DemoLoginAsync(CancellationToken ct = default)
     {
-        var result = await _http.PostAsync<DemoLoginResult>("api/v1/demo/login", new { }, ct);
+        var result = await _http.PostAsync<DemoLoginResult>("api/v1/demo/login", new { }, tenantOverride: null, ct);
         _http.SetToken(result.Token);
         return result.Token;
     }
@@ -38,7 +39,7 @@ public sealed class AuthClient
     /// </summary>
     public async Task<LoginResult> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
-        var result = await _http.PostAsync<LoginResult>("api/v1/auth/register", request, ct);
+        var result = await _http.PostAsync<LoginResult>("api/v1/auth/register", request, tenantOverride: null, ct);
         _http.SetToken(result.Token);
         return result;
     }
@@ -48,7 +49,7 @@ public sealed class AuthClient
     /// </summary>
     public async Task ForgotPasswordAsync(string email, CancellationToken ct = default)
     {
-        await _http.PostAsync("api/v1/auth/forgot-password", new { email }, ct);
+        await _http.PostAsync("api/v1/auth/forgot-password", new { email }, tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -56,7 +57,7 @@ public sealed class AuthClient
     /// </summary>
     public async Task ResetPasswordAsync(string token, string password, CancellationToken ct = default)
     {
-        await _http.PostAsync("api/v1/auth/reset-password", new { token, password }, ct);
+        await _http.PostAsync("api/v1/auth/reset-password", new { token, password }, tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -64,7 +65,7 @@ public sealed class AuthClient
     /// </summary>
     public async Task ChangePasswordAsync(string currentPassword, string newPassword, CancellationToken ct = default)
     {
-        await _http.PostAsync("api/v1/auth/change-password", new { currentPassword, newPassword }, ct);
+        await _http.PostAsync("api/v1/auth/change-password", new { currentPassword, newPassword }, tenantOverride: null, ct);
     }
 
     /// <summary>
