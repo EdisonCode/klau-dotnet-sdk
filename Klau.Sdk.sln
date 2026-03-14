@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{37
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CsvJobImport", "examples\CsvJobImport\CsvJobImport.csproj", "{FB61C582-9682-4EFF-8490-82AE416105AC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebhookIntegration", "examples\WebhookIntegration\WebhookIntegration.csproj", "{0EA611B7-0074-4EC4-8B8F-97F5AF2CD23E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,10 +38,15 @@ Global
 		{FB61C582-9682-4EFF-8490-82AE416105AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FB61C582-9682-4EFF-8490-82AE416105AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FB61C582-9682-4EFF-8490-82AE416105AC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0EA611B7-0074-4EC4-8B8F-97F5AF2CD23E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0EA611B7-0074-4EC4-8B8F-97F5AF2CD23E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0EA611B7-0074-4EC4-8B8F-97F5AF2CD23E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0EA611B7-0074-4EC4-8B8F-97F5AF2CD23E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{4754D1C3-509C-4834-AA9B-C941200BC4BB} = {C55BFCF8-B6E3-4692-BBA6-506F105BC8AE}
 		{EC3E4B6C-1236-454B-AAD3-4BDEB7408242} = {20844B99-7243-4CA1-B841-A0DAA0A6BF86}
 		{FB61C582-9682-4EFF-8490-82AE416105AC} = {37D3F418-AE52-4EF1-BE7F-6128D76FCDB6}
+		{0EA611B7-0074-4EC4-8B8F-97F5AF2CD23E} = {37D3F418-AE52-4EF1-BE7F-6128D76FCDB6}
 	EndGlobalSection
 EndGlobal

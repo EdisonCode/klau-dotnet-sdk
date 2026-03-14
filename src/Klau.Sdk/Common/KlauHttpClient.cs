@@ -41,7 +41,11 @@ public sealed class KlauHttpClient : IDisposable
         HttpStatusCode.GatewayTimeout,       // 504
     ];
 
-    internal static readonly JsonSerializerOptions JsonOptions = new()
+    /// <summary>
+    /// JSON serializer options used by the SDK. Exposed for webhook event
+    /// deserialization and other scenarios where you need matching serialization.
+    /// </summary>
+    public static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
