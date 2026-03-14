@@ -9,6 +9,7 @@ using Klau.Sdk.Orders;
 using Klau.Sdk.Divisions;
 using Klau.Sdk.Proposals;
 using Klau.Sdk.Storefronts;
+using Klau.Sdk.Webhooks;
 using Microsoft.Extensions.Logging;
 
 namespace Klau.Sdk;
@@ -38,6 +39,7 @@ public sealed class KlauClient : IDisposable
     public OrderClient Orders { get; }
     public ProposalClient Proposals { get; }
     public DivisionClient Divisions { get; }
+    public WebhookClient Webhooks { get; }
 
     /// <summary>
     /// Create a new Klau API client authenticated with an API key.
@@ -72,6 +74,7 @@ public sealed class KlauClient : IDisposable
         Orders = new OrderClient(Http);
         Proposals = new ProposalClient(Http);
         Divisions = new DivisionClient(Http);
+        Webhooks = new WebhookClient(Http);
 
         Http.SetToken(apiKey);
     }

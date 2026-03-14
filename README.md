@@ -2,11 +2,11 @@
 
 Official .NET SDK for the [Klau](https://getklau.com) API. Built for dev teams integrating roll-off waste hauling operations into .NET applications.
 
-## Installation
-
 ```bash
 dotnet add package Klau.Sdk
 ```
+
+Requires .NET 9.0+. No external dependencies.
 
 ## Quick Start
 
@@ -18,15 +18,225 @@ using Klau.Sdk;
 using var klau = new KlauClient("kl_live_your_api_key_here");
 
 // Get today's dispatch board
-var board = await klau.Dispatches.GetBoardAsync("2026-03-13");
+var board = await klau.Dispatches.GetBoardAsync("2026-03-15");
 
 foreach (var dispatch in board.Dispatches)
-{
     Console.WriteLine($"{dispatch.DriverName}: {dispatch.Jobs.Count} jobs");
+```
+
+## Integration Guide: Jobs In, Assignments Out
+
+Most integrations follow the same pattern: push work orders from your backend into Klau, run dispatch optimization, then read back driver assignments. This section walks through the entire flow.
+
+### Step 1: Push jobs into Klau
+
+Use `ExternalId` on every job to correlate Klau records with your system's IDs. This is the key to reliable two-way sync.
+
+```csharp
+// Single job
+var job = await klau.Jobs.CreateAsync(new CreateJobRequest
+{
+    CustomerId = "customer-id",
+    SiteId = "site-id",
+    Type = JobType.DELIVERY,
+    ContainerSize = 20,
+    RequestedDate = "2026-03-15",
+    TimeWindow = TimeWindow.MORNING,
+    ExternalId = "YOUR-WORK-ORDER-123"  // your system's ID
+});
+
+// Batch — send up to 100 jobs in one call
+var result = await klau.Jobs.CreateBatchAsync(new List<CreateJobRequest>
+{
+    new()
+    {
+        CustomerId = "cust-1",
+        SiteId = "site-1",
+        Type = JobType.DELIVERY,
+        ContainerSize = 20,
+        RequestedDate = "2026-03-15",
+        ExternalId = "WO-1001"
+    },
+    new()
+    {
+        CustomerId = "cust-2",
+        SiteId = "site-2",
+        Type = JobType.PICKUP,
+        ContainerSize = 30,
+        RequestedDate = "2026-03-15",
+        ExternalId = "WO-1002"
+    }
+});
+
+// Check for partial failures
+foreach (var created in result.Created)
+    Console.WriteLine($"Created {created.JobId} (external: {created.ExternalId})");
+
+foreach (var error in result.Errors)
+    Console.WriteLine($"Failed index {error.Index}: {error.Code} - {error.Message}");
+```
+
+### Step 2: Optimize dispatch
+
+Optimization is async. `OptimizeAndWaitAsync` handles polling for you.
+
+```csharp
+var optimization = await klau.Dispatches.OptimizeAndWaitAsync(new OptimizeRequest
+{
+    Date = "2026-03-15",
+    OptimizationMode = OptimizationMode.FULL_DAY
+});
+
+if (optimization.Status == OptimizationJobStatus.COMPLETED)
+{
+    var r = optimization.Result!;
+    Console.WriteLine($"Plan grade: {r.PlanGrade} ({r.PlanQuality}/100)");
+    Console.WriteLine($"Assigned: {r.AssignedJobs}/{r.TotalJobs}");
+    Console.WriteLine($"Flow score: {r.FlowScore}/100");
 }
 ```
 
-The API key is the only credential you need. It authenticates as your company with the scopes you configured at creation time.
+Or manage polling yourself for more control:
+
+```csharp
+var job = await klau.Dispatches.StartOptimizationAsync(new OptimizeRequest
+{
+    Date = "2026-03-15"
+});
+
+while (job.Status is OptimizationJobStatus.PENDING or OptimizationJobStatus.RUNNING)
+{
+    await Task.Delay(2000);
+    job = await klau.Dispatches.GetOptimizationStatusAsync(job.JobId);
+}
+```
+
+### Step 3: Read back assignments
+
+After optimization, read the dispatch board to get driver routes with job sequences:
+
+```csharp
+var board = await klau.Dispatches.GetBoardAsync("2026-03-15");
+
+foreach (var dispatch in board.Dispatches)
+{
+    Console.WriteLine($"\n{dispatch.DriverName} ({dispatch.DriverId}):");
+
+    foreach (var job in dispatch.Jobs.OrderBy(j => j.Sequence))
+    {
+        Console.WriteLine($"  #{job.Sequence} {job.Type} - {job.CustomerName} " +
+            $"({job.ContainerSize}yd) [external: {job.ExternalId}]");
+    }
+}
+
+// Unassigned jobs that couldn't be fit
+foreach (var unassigned in board.UnassignedJobs)
+    Console.WriteLine($"Unassigned: {unassigned.ExternalId} - {unassigned.CustomerName}");
+```
+
+### Step 4: Publish to drivers
+
+Once you're satisfied with the plan, publish it so drivers see their routes:
+
+```csharp
+await klau.Dispatches.PublishAsync("2026-03-15");
+```
+
+## Webhooks: Real-Time Event Delivery
+
+Instead of polling for changes, register a webhook to receive events as they happen. Klau delivers events with HMAC-SHA256 signatures for verification.
+
+### Register a webhook
+
+```csharp
+var webhook = await klau.Webhooks.CreateAsync(new CreateWebhookRequest
+{
+    Url = "https://your-app.com/api/klau-webhook",
+    Events = ["job.assigned", "job.completed", "dispatch.optimized"],
+    Description = "Production sync"
+});
+
+// Store this secret securely — it's only returned once
+Console.WriteLine($"Webhook secret: {webhook.Secret}");
+```
+
+### Receive and verify events
+
+Use `KlauWebhookValidator` in your webhook endpoint to verify signatures and parse events:
+
+```csharp
+// In your ASP.NET Core controller or minimal API
+app.MapPost("/api/klau-webhook", async (HttpContext ctx) =>
+{
+    var validator = new KlauWebhookValidator("whsec_your_secret");
+
+    var body = await new StreamReader(ctx.Request.Body).ReadToEndAsync();
+    var signature = ctx.Request.Headers["Klau-Signature"].ToString();
+
+    // Throws KlauWebhookException if signature is invalid or timestamp expired
+    var evt = validator.ValidateAndParse(signature, body);
+
+    switch (evt.Type)
+    {
+        case "job.assigned":
+            var assigned = evt.Data.Deserialize<JobAssignedEvent>();
+            // Sync assignment back to your system
+            // assigned.JobId, assigned.DriverId, assigned.AssignmentSource
+            break;
+
+        case "job.completed":
+            var completed = evt.Data.Deserialize<JobCompletedEvent>();
+            // Close work order in your system
+            break;
+
+        case "dispatch.optimized":
+            var optimized = evt.Data.Deserialize<DispatchOptimizedEvent>();
+            // React to optimization: optimized.Metrics.AssignedJobs, etc.
+            break;
+    }
+
+    return Results.Ok();
+});
+```
+
+Or parse directly into a typed event if you know the type:
+
+```csharp
+var evt = validator.ValidateAndParse<JobAssignedEvent>(signature, body);
+Console.WriteLine($"Job {evt.Data.JobId} assigned to driver {evt.Data.DriverId}");
+```
+
+### Available events
+
+| Event | Fired when |
+|-------|-----------|
+| `job.created` | New job entered into Klau |
+| `job.assigned` | Job assigned to a driver (manual or optimization) |
+| `job.unassigned` | Job removed from a driver's route |
+| `job.status_changed` | Job transitions (IN_PROGRESS, COMPLETED, etc.) |
+| `job.completed` | Job finished (also fires `status_changed`) |
+| `dispatch.optimized` | Optimization run completed with metrics |
+
+Use `"*"` to subscribe to all events.
+
+### Manage webhooks
+
+```csharp
+// List existing webhooks
+var settings = await klau.Webhooks.GetSettingsAsync();
+foreach (var endpoint in settings.WebhookEndpoints)
+    Console.WriteLine($"{endpoint.Id}: {endpoint.Url} [{endpoint.Status}]");
+
+// Disable/enable
+await klau.Webhooks.SetEnabledAsync("webhook-id", false);
+
+// Test connectivity
+var test = await klau.Webhooks.TestAsync("webhook-id");
+Console.WriteLine($"Test: {(test.Success ? "OK" : test.Error)} ({test.ResponseTime}ms)");
+
+// Delete
+await klau.Webhooks.DeleteAsync("webhook-id");
+```
 
 ## Enterprise: Multi-Division Operations
 
@@ -38,39 +248,31 @@ using var klau = new KlauClient("kl_live_corporate_api_key");
 // List all divisions under your account
 var divisions = await klau.Divisions.ListAsync();
 foreach (var div in divisions)
-{
     Console.WriteLine($"{div.Name}: {div.DriverCount} drivers, {div.JobCount} jobs");
-}
 
-// Get aggregate usage across all divisions
-var usage = await klau.Divisions.GetUsageSummaryAsync();
-Console.WriteLine($"Total jobs: {usage.TotalJobs} across {usage.Divisions.Count} divisions");
-
-// Operate on a specific division
+// Operate on a specific division — thread-safe, no shared state
 var region = klau.ForTenant(divisions[0].Id);
-var board = await region.Dispatches.GetBoardAsync("2026-03-13");
-var jobs = await region.Jobs.ListAsync(date: "2026-03-13");
+var board = await region.Dispatches.GetBoardAsync("2026-03-15");
+var jobs = await region.Jobs.ListAsync(date: "2026-03-15");
 
 // Or set/clear tenant context directly
 klau.SetTenant(divisions[0].Id);
 var customers = await klau.Customers.ListAsync();
 klau.ClearTenant(); // revert to parent company context
 
-// Get detailed usage for a single division
-var divUsage = await klau.Divisions.GetUsageAsync(divisions[0].Id);
-Console.WriteLine($"Recent jobs: {divUsage.RecentJobs}, Billed: {divUsage.BilledJobs}");
+// Aggregate usage across all divisions
+var usage = await klau.Divisions.GetUsageSummaryAsync();
+Console.WriteLine($"Total jobs: {usage.TotalJobs} across {usage.Divisions.Count} divisions");
 ```
 
 ## Jobs
 
 ```csharp
 // List unassigned jobs for a date
-var jobs = await klau.Jobs.ListAsync(date: "2026-03-13", status: JobStatus.UNASSIGNED);
+var jobs = await klau.Jobs.ListAsync(date: "2026-03-15", status: JobStatus.UNASSIGNED);
 
 foreach (var job in jobs.Items)
-{
     Console.WriteLine($"{job.Type} - {job.CustomerName} - {job.ContainerSize}yd");
-}
 
 // Create a job
 var newJob = await klau.Jobs.CreateAsync(new CreateJobRequest
@@ -97,35 +299,6 @@ await klau.Jobs.StartAsync(newJob.Id);    // ASSIGNED -> IN_PROGRESS
 await klau.Jobs.CompleteAsync(newJob.Id);  // IN_PROGRESS -> COMPLETED
 ```
 
-## Dispatch Optimization
-
-```csharp
-// Start optimization and wait for results (polls automatically)
-var result = await klau.Dispatches.OptimizeAndWaitAsync(new OptimizeRequest
-{
-    Date = "2026-03-13",
-    OptimizationMode = OptimizationMode.FULL_DAY
-});
-
-Console.WriteLine($"Chain Score: {result.Result?.ChainScore}/100");
-Console.WriteLine($"Assigned: {result.Result?.AssignedJobs}/{result.Result?.TotalJobs}");
-
-// Or manage polling yourself
-var job = await klau.Dispatches.StartOptimizationAsync(new OptimizeRequest
-{
-    Date = "2026-03-13"
-});
-
-while (job.Status is OptimizationJobStatus.PENDING or OptimizationJobStatus.RUNNING)
-{
-    await Task.Delay(2000);
-    job = await klau.Dispatches.GetOptimizationStatusAsync(job.JobId);
-}
-
-// Publish optimized routes to drivers
-await klau.Dispatches.PublishAsync("2026-03-13");
-```
-
 ## Storefront (Online Ordering)
 
 Storefronts are configured through the API and live at `{slug}.rolloff.app`. Public endpoints (catalog, order submission, availability) do not require authentication.
@@ -134,9 +307,7 @@ Storefronts are configured through the API and live at `{slug}.rolloff.app`. Pub
 // Get storefront catalog (public, no auth required)
 var config = await klau.Storefronts.GetConfigAsync("my-company");
 foreach (var offering in config.ServiceOfferings)
-{
     Console.WriteLine($"{offering.Name}: ${offering.BasePriceCents / 100.0}");
-}
 
 // Check available delivery dates
 var availability = await klau.Storefronts.CheckAvailabilityAsync("my-company",
@@ -245,6 +416,8 @@ catch (KlauApiException ex)
 
 Common error codes: `VALIDATION_ERROR`, `UNAUTHORIZED`, `NOT_FOUND`, `INSUFFICIENT_SCOPE`, `COMMAND_FAILED`.
 
+The SDK automatically retries transient errors (429, 502, 503, 504) with exponential backoff up to 3 times, and respects `Retry-After` headers from rate limiting.
+
 ## Pagination
 
 List endpoints return `PagedResult<T>` with pagination metadata:
@@ -274,11 +447,6 @@ API keys can be scoped to specific permissions using `action:resource` format:
 Resources: `jobs`, `drivers`, `trucks`, `dispatches`, `customers`, `sites`, `yards`, `dump-sites`, `materials`, `storefronts`, `orders`, `dump-tickets`, `communications`, `intelligence`, `coaching`, `export`, and more.
 
 If a request exceeds the key's scopes, the API returns `403 INSUFFICIENT_SCOPE`.
-
-## Requirements
-
-- .NET 9.0+
-- No external dependencies
 
 ## License
 

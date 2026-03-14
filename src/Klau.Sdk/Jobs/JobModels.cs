@@ -156,6 +156,39 @@ public sealed record UpdateJobRequest
     public string? ContainerNumber { get; init; }
 }
 
+public sealed record BatchCreateResult
+{
+    [JsonPropertyName("created")]
+    public IReadOnlyList<BatchJobResult> Created { get; init; } = [];
+
+    [JsonPropertyName("errors")]
+    public IReadOnlyList<BatchJobError> Errors { get; init; } = [];
+}
+
+public sealed record BatchJobResult
+{
+    [JsonPropertyName("jobId")]
+    public string JobId { get; init; } = string.Empty;
+
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; init; }
+}
+
+public sealed record BatchJobError
+{
+    [JsonPropertyName("index")]
+    public int Index { get; init; }
+
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; init; }
+
+    [JsonPropertyName("code")]
+    public string Code { get; init; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; init; } = string.Empty;
+}
+
 public sealed record AssignJobRequest
 {
     [JsonPropertyName("driverId")]

@@ -53,6 +53,18 @@ public sealed class JobClient
     }
 
     /// <summary>
+    /// Create multiple jobs in a single API call.
+    /// Returns a batch result with the created job IDs and any per-record errors.
+    /// </summary>
+    public async Task<BatchCreateResult> CreateBatchAsync(
+        IReadOnlyList<CreateJobRequest> jobs,
+        CancellationToken ct = default)
+    {
+        return await _http.PostAsync<BatchCreateResult>(
+            "api/v1/jobs/batch", new { jobs }, _tenantId, ct);
+    }
+
+    /// <summary>
     /// Update an existing job.
     /// </summary>
     public async Task<Job> UpdateAsync(string id, UpdateJobRequest request, CancellationToken ct = default)
