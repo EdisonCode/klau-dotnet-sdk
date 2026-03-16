@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using Klau.Sdk.Common;
-using Klau.Sdk.Jobs;
 
 namespace Klau.Sdk.Dispatches;
 
@@ -17,7 +16,7 @@ public sealed record DispatchBoard
     public IReadOnlyList<DispatchBoardDriver> Drivers { get; init; } = [];
 
     [JsonPropertyName("unassignedJobs")]
-    public IReadOnlyList<Job> UnassignedJobs { get; init; } = [];
+    public IReadOnlyList<DispatchBoardJob> UnassignedJobs { get; init; } = [];
 
     [JsonPropertyName("yard")]
     public YardInfo? Yard { get; init; }
@@ -30,6 +29,120 @@ public sealed record DispatchBoard
 
     [JsonPropertyName("dispatchStatus")]
     public string? DispatchStatus { get; init; }
+}
+
+/// <summary>
+/// A job as it appears on the dispatch board. Includes drive-time and routing
+/// fields that are only available in the dispatch board context (not on the
+/// regular <c>GET /api/v1/jobs/:id</c> response).
+/// </summary>
+public sealed record DispatchBoardJob
+{
+    [JsonPropertyName("id")]
+    public string Id { get; init; } = string.Empty;
+
+    [JsonPropertyName("type")]
+    public JobType Type { get; init; }
+
+    [JsonPropertyName("status")]
+    public JobStatus Status { get; init; }
+
+    [JsonPropertyName("customerName")]
+    public string CustomerName { get; init; } = string.Empty;
+
+    [JsonPropertyName("customerId")]
+    public string? CustomerId { get; init; }
+
+    [JsonPropertyName("siteId")]
+    public string? SiteId { get; init; }
+
+    [JsonPropertyName("siteAddress")]
+    public string? SiteAddress { get; init; }
+
+    [JsonPropertyName("containerSize")]
+    public int? ContainerSize { get; init; }
+
+    [JsonPropertyName("containerNumber")]
+    public string? ContainerNumber { get; init; }
+
+    [JsonPropertyName("scheduledDate")]
+    public string? ScheduledDate { get; init; }
+
+    [JsonPropertyName("requestedDate")]
+    public string? RequestedDate { get; init; }
+
+    [JsonPropertyName("timeWindow")]
+    public TimeWindow? TimeWindow { get; init; }
+
+    [JsonPropertyName("priority")]
+    public JobPriority? Priority { get; init; }
+
+    [JsonPropertyName("driverId")]
+    public string? DriverId { get; init; }
+
+    [JsonPropertyName("driverName")]
+    public string? DriverName { get; init; }
+
+    [JsonPropertyName("truckId")]
+    public string? TruckId { get; init; }
+
+    [JsonPropertyName("sequence")]
+    public int? Sequence { get; init; }
+
+    [JsonPropertyName("estimatedStartTime")]
+    public string? EstimatedStartTime { get; init; }
+
+    /// <summary>On-site service time only (minutes).</summary>
+    [JsonPropertyName("estimatedMinutes")]
+    public int? EstimatedMinutes { get; init; }
+
+    /// <summary>
+    /// Total isolated job cost: yard → site → dump → yard round trip + service time (minutes).
+    /// Null for jobs without geocoded sites.
+    /// </summary>
+    [JsonPropertyName("baselineMinutes")]
+    public int? BaselineMinutes { get; init; }
+
+    /// <summary>
+    /// Drive time TO this job from the previous stop (minutes).
+    /// Populated after optimization; null for unassigned jobs or before first optimization.
+    /// </summary>
+    [JsonPropertyName("driveToMinutes")]
+    public double? DriveToMinutes { get; init; }
+
+    /// <summary>
+    /// Distance TO this job from the previous stop (miles).
+    /// Populated after optimization; null for unassigned jobs or before first optimization.
+    /// </summary>
+    [JsonPropertyName("driveToMiles")]
+    public double? DriveToMiles { get; init; }
+
+    /// <summary>
+    /// Source of the drive time estimate for this job.
+    /// <c>"haversine"</c> — straight-line estimate; <c>"cached"</c> — pre-warmed cache;
+    /// <c>"routing_engine"</c> — real commercial truck routing (HERE Maps).
+    /// Null when no drive time data is available.
+    /// </summary>
+    [JsonPropertyName("driveTimeSource")]
+    public string? DriveTimeSource { get; init; }
+
+    [JsonPropertyName("notes")]
+    public string? Notes { get; init; }
+
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; init; }
+
+    [JsonPropertyName("orderId")]
+    public string? OrderId { get; init; }
+
+    [JsonPropertyName("dumpSiteId")]
+    public string? DumpSiteId { get; init; }
+
+    [JsonPropertyName("createdAt")]
+    public DateTime CreatedAt { get; init; }
+
+    [JsonPropertyName("updatedAt")]
+    public DateTime UpdatedAt { get; init; }
 }
 
 /// <summary>
@@ -68,7 +181,7 @@ public sealed record DispatchBoardDriver
     public string? DriverType { get; init; }
 
     [JsonPropertyName("jobs")]
-    public IReadOnlyList<Job> Jobs { get; init; } = [];
+    public IReadOnlyList<DispatchBoardJob> Jobs { get; init; } = [];
 
     [JsonPropertyName("totalDriveMinutes")]
     public int TotalDriveMinutes { get; init; }
@@ -211,6 +324,13 @@ public sealed record OptimizationResult
     /// <summary>Plan quality letter grade (A+ through F).</summary>
     [JsonPropertyName("planGrade")]
     public string? PlanGrade { get; init; }
+
+    /// <summary>
+    /// Indicates whether real routing-engine drive times or Haversine estimates were used.
+    /// <c>"API"</c> or <c>"ESTIMATED"</c>.
+    /// </summary>
+    [JsonPropertyName("driveTimeSource")]
+    public string? DriveTimeSource { get; init; }
 }
 
 public sealed record OptimizeRequest

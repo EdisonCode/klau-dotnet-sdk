@@ -169,4 +169,14 @@ public sealed record OptimizationMetrics
 
     [JsonPropertyName("estimatedMinutesSaved")]
     public int EstimatedMinutesSaved { get; init; }
+
+    [JsonPropertyName("strongBondsPreserved")]
+    public int StrongBondsPreserved { get; init; }
+
+    /// <summary>
+    /// Whether drive times came from the routing engine or were estimated.
+    /// <c>"API"</c> or <c>"ESTIMATED"</c>.
+    /// </summary>
+    [JsonPropertyName("driveTimeSource")]
+    public string? DriveTimeSource { get; init; }
 }

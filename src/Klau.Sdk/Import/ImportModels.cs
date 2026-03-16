@@ -121,6 +121,14 @@ public sealed record ImportJobsResult
     public bool Success { get; init; }
 
     /// <summary>
+    /// Batch identifier for tracking drive-time cache readiness.
+    /// Use with <see cref="ImportClient.GetReadinessAsync"/> to poll for cache warm-up
+    /// before running optimization.
+    /// </summary>
+    [JsonPropertyName("batchId")]
+    public string? BatchId { get; init; }
+
+    /// <summary>
     /// Number of jobs successfully created.
     /// </summary>
     [JsonPropertyName("imported")]
@@ -173,4 +181,35 @@ public sealed record ImportError
     /// </summary>
     [JsonPropertyName("message")]
     public string Message { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Drive-time cache readiness status for an import batch.
+/// After importing jobs with new site addresses, drive-time calculations
+/// run asynchronously. Poll this until <see cref="Status"/> is <c>"ready"</c>
+/// before running optimization to ensure accurate routing.
+/// </summary>
+public sealed record BatchReadiness
+{
+    /// <summary>The import batch identifier.</summary>
+    [JsonPropertyName("batchId")]
+    public required string BatchId { get; init; }
+
+    /// <summary>Total number of unique sites in the batch.</summary>
+    [JsonPropertyName("sitesTotal")]
+    public required int SitesTotal { get; init; }
+
+    /// <summary>Number of sites with cached drive times.</summary>
+    [JsonPropertyName("sitesCached")]
+    public required int SitesCached { get; init; }
+
+    /// <summary>
+    /// Readiness status: <c>"ready"</c>, <c>"warming"</c>, <c>"partial"</c>, or <c>"not_applicable"</c>.
+    /// </summary>
+    [JsonPropertyName("status")]
+    public required string Status { get; init; }
+
+    /// <summary>Human-readable status message.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; init; }
 }
