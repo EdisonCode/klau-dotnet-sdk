@@ -173,6 +173,27 @@ public sealed class KlauClient : IKlauClient, IDisposable
     }
 
     /// <summary>
+    /// Send a raw HTTP request through the SDK's infrastructure (auth, retry, tenant
+    /// headers, User-Agent). Use this to call API endpoints that the SDK doesn't
+    /// cover yet — for example, beta features or custom analytics endpoints.
+    ///
+    /// <code>
+    /// var response = await klau.SendRawAsync(HttpMethod.Get, "api/v1/analytics/summary?date=2026-03-16");
+    /// var json = await response.Content.ReadAsStringAsync();
+    /// </code>
+    /// </summary>
+    /// <param name="method">HTTP method (GET, POST, etc.).</param>
+    /// <param name="path">Relative API path (e.g. "api/v1/some/endpoint").</param>
+    /// <param name="body">Optional request body (serialized as JSON).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The raw <see cref="HttpResponseMessage"/>. Caller is responsible for checking status and reading content.</returns>
+    public async Task<HttpResponseMessage> SendRawAsync(
+        HttpMethod method, string path, object? body = null, CancellationToken ct = default)
+    {
+        return await Http.SendRawAsync(method, path, body, ct);
+    }
+
+    /// <summary>
     /// Set the default tenant context for all requests made through this client.
     /// Enterprise API keys (parent company) can operate on any child tenant.
     ///

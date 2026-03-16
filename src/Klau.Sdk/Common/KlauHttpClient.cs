@@ -564,6 +564,22 @@ public sealed class KlauHttpClient : IDisposable
         { RetryAfter = retryAfter };
     }
 
+    /// <summary>
+    /// Send a raw request through the SDK's retry/auth/tenant infrastructure.
+    /// Returns the raw HttpResponseMessage without unwrapping the API envelope.
+    /// </summary>
+    internal async Task<HttpResponseMessage> SendRawAsync(
+        HttpMethod method, string path, object? body = null, CancellationToken ct = default)
+    {
+        return await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(method, path);
+            if (body is not null) req.Content = JsonContent.Create(body, options: JsonOptions);
+            ApplyTenantHeader(req, null);
+            return req;
+        }, ct);
+    }
+
     public void Dispose()
     {
         if (_ownsHttpClient) _http.Dispose();
