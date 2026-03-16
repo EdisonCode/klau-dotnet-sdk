@@ -71,8 +71,13 @@ public sealed record DispatchBoardJob
     [JsonPropertyName("requestedDate")]
     public string? RequestedDate { get; init; }
 
+    /// <summary>
+    /// Time window display string (e.g. <c>"7:00 AM - 12:00 PM"</c>, <c>"Anytime"</c>).
+    /// Note: the dispatch board returns a formatted display string, not the enum value
+    /// used when creating jobs.
+    /// </summary>
     [JsonPropertyName("timeWindow")]
-    public TimeWindow? TimeWindow { get; init; }
+    public string? TimeWindow { get; init; }
 
     [JsonPropertyName("priority")]
     public JobPriority? Priority { get; init; }
