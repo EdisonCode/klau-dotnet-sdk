@@ -451,6 +451,12 @@ public sealed class KlauHttpClient : IDisposable
     {
         var body = await response.Content.ReadAsStringAsync(ct);
 
+        // Extract Retry-After for rate limit responses
+        TimeSpan? retryAfter = response.Headers.RetryAfter?.Delta
+            ?? (response.Headers.RetryAfter?.Date is { } date
+                ? date - DateTimeOffset.UtcNow
+                : null);
+
         // Try standard Klau API error shape: { error: { code, message, details } }
         try
         {
@@ -461,7 +467,8 @@ public sealed class KlauHttpClient : IDisposable
                     error.Error.Code,
                     error.Error.Message,
                     (int)response.StatusCode,
-                    error.Error.Details);
+                    error.Error.Details)
+                { RetryAfter = retryAfter };
             }
         }
         catch (JsonException) { }
@@ -478,7 +485,8 @@ public sealed class KlauHttpClient : IDisposable
                 throw new KlauApiException(
                     errorName ?? "HTTP_ERROR",
                     message,
-                    (int)response.StatusCode);
+                    (int)response.StatusCode)
+                { RetryAfter = retryAfter };
             }
         }
         catch (JsonException) { }
@@ -486,7 +494,8 @@ public sealed class KlauHttpClient : IDisposable
         throw new KlauApiException(
             "HTTP_ERROR",
             $"Request failed with status {(int)response.StatusCode}: {body}",
-            (int)response.StatusCode);
+            (int)response.StatusCode)
+        { RetryAfter = retryAfter };
     }
 
     public void Dispose()
