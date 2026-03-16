@@ -68,6 +68,9 @@ var jobRequests = orders
         // Use a placeholder customer ID — in production you'd look these up
         // or use Klau's createMissing option to auto-create customer stubs
         CustomerId = "default",
+        // In production you'd look up the Klau site ID from your system's address mapping.
+        // The API requires a siteId — use Klau's site lookup or create sites beforehand.
+        SiteId = "default",
         Type = MapServiceType(o.ServiceType),
         ContainerSize = o.ContainerSize > 0 ? o.ContainerSize : null,
         RequestedDate = date,
@@ -152,14 +155,14 @@ Console.WriteLine(new string('─', 90));
 
 var board = await klau.Dispatches.GetBoardAsync(date);
 
-foreach (var dispatch in board.Dispatches)
+foreach (var driver in board.Drivers)
 {
-    Console.WriteLine($"\n  Driver: {dispatch.DriverName} ({dispatch.DriverId})");
-    Console.WriteLine($"  Status: {dispatch.Status}");
+    Console.WriteLine($"\n  Driver: {driver.Name} ({driver.Id})");
+    Console.WriteLine($"  Status: {driver.Status}");
     Console.WriteLine($"  {"Seq",-4} {"Type",-14} {"Customer",-28} {"Size",-6} {"Order #"}");
     Console.WriteLine($"  {"───",-4} {"──────────────",-14} {"────────────────────────────",-28} {"──────",-6} {"───────"}");
 
-    foreach (var job in dispatch.Jobs.OrderBy(j => j.Sequence))
+    foreach (var job in driver.Jobs.OrderBy(j => j.Sequence))
     {
         Console.WriteLine($"  {job.Sequence,-4} {job.Type,-14} {Truncate(job.CustomerName, 28),-28} " +
             $"{(job.ContainerSize.HasValue ? $"{job.ContainerSize}yd" : "—"),-6} {job.ExternalId}");

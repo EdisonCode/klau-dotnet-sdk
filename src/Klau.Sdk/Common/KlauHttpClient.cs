@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -136,6 +137,21 @@ public sealed class KlauHttpClient : IDisposable
         return await HandleWrappedResponse<T>(response, ct);
     }
 
+    /// <summary>
+    /// Get a list endpoint that returns { data: { [collectionName]: [...], total: N, ... } }.
+    /// Extracts the named array from the nested object and returns it with pagination info.
+    /// </summary>
+    internal async Task<ListResponse<T>> GetListAsync<T>(string path, string collectionName, string? tenantOverride = null, CancellationToken ct = default)
+    {
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, path);
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
+        return await HandleListResponse<T>(response, collectionName, ct);
+    }
+
     internal async Task<T> PostAsync<T>(string path, object? body = null, string? tenantOverride = null, CancellationToken ct = default)
     {
         var response = await SendWithRetry(() =>
@@ -146,6 +162,38 @@ public sealed class KlauHttpClient : IDisposable
             return req;
         }, ct);
         return await HandleResponse<T>(response, ct);
+    }
+
+    /// <summary>
+    /// Post to a create endpoint that returns { data: { [idFieldName]: "..." } }.
+    /// Returns the created entity ID.
+    /// </summary>
+    internal async Task<string> PostCreateAsync(string path, object? body, string idFieldName, string? tenantOverride = null, CancellationToken ct = default)
+    {
+        var response = await SendWithRetry(() =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, path);
+            if (body is not null) req.Content = JsonContent.Create(body, options: JsonOptions);
+            ApplyTenantHeader(req, tenantOverride);
+            return req;
+        }, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await ThrowApiException(response, ct);
+        }
+
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(responseBody);
+
+        if (!doc.RootElement.TryGetProperty("data", out var dataElement))
+            throw new KlauApiException("DESERIALIZATION_ERROR", "Response missing 'data' property", (int)response.StatusCode);
+
+        if (!dataElement.TryGetProperty(idFieldName, out var idElement))
+            throw new KlauApiException("DESERIALIZATION_ERROR", $"Response data missing '{idFieldName}' property", (int)response.StatusCode);
+
+        return idElement.GetString()
+            ?? throw new KlauApiException("DESERIALIZATION_ERROR", $"'{idFieldName}' was null", (int)response.StatusCode);
     }
 
     internal async Task PostAsync(string path, object? body = null, string? tenantOverride = null, CancellationToken ct = default)
@@ -319,6 +367,39 @@ public sealed class KlauHttpClient : IDisposable
         return wrapper;
     }
 
+    /// <summary>
+    /// Handle API list responses shaped as { data: { [collectionName]: [...], total: N, page: N, ... } }.
+    /// Extracts the named collection and pagination metadata from the nested object.
+    /// </summary>
+    private async Task<ListResponse<T>> HandleListResponse<T>(HttpResponseMessage response, string collectionName, CancellationToken ct)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            await ThrowApiException(response, ct);
+        }
+
+        var body = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(body);
+
+        if (!doc.RootElement.TryGetProperty("data", out var dataElement))
+            throw new KlauApiException("DESERIALIZATION_ERROR", "Response missing 'data' property", (int)response.StatusCode);
+
+        // Extract the named collection array
+        if (!dataElement.TryGetProperty(collectionName, out var collectionElement))
+            throw new KlauApiException("DESERIALIZATION_ERROR", $"Response data missing '{collectionName}' property", (int)response.StatusCode);
+
+        var items = JsonSerializer.Deserialize<List<T>>(collectionElement.GetRawText(), JsonOptions)
+            ?? [];
+
+        // Extract pagination fields from the data object
+        int? total = dataElement.TryGetProperty("total", out var totalEl) ? totalEl.GetInt32() : null;
+        int? page = dataElement.TryGetProperty("page", out var pageEl) ? pageEl.GetInt32() : null;
+        int? pageSize = dataElement.TryGetProperty("pageSize", out var pageSizeEl) ? pageSizeEl.GetInt32() : null;
+        bool hasMore = dataElement.TryGetProperty("hasMore", out var hasMoreEl) && hasMoreEl.GetBoolean();
+
+        return new ListResponse<T>(items, total, page, pageSize, hasMore);
+    }
+
     private async Task EnsureSuccess(HttpResponseMessage response, CancellationToken ct)
     {
         if (!response.IsSuccessStatusCode)
@@ -329,9 +410,12 @@ public sealed class KlauHttpClient : IDisposable
 
     private static async Task ThrowApiException(HttpResponseMessage response, CancellationToken ct)
     {
+        var body = await response.Content.ReadAsStringAsync(ct);
+
+        // Try standard Klau API error shape: { error: { code, message, details } }
         try
         {
-            var error = await response.Content.ReadFromJsonAsync<ApiErrorResponse>(JsonOptions, ct);
+            var error = JsonSerializer.Deserialize<ApiErrorResponse>(body, JsonOptions);
             if (error?.Error is not null)
             {
                 throw new KlauApiException(
@@ -343,7 +427,23 @@ public sealed class KlauHttpClient : IDisposable
         }
         catch (JsonException) { }
 
-        var body = await response.Content.ReadAsStringAsync(ct);
+        // Fallback: try Fastify's native error shape { statusCode, error, message }
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            var message = root.TryGetProperty("message", out var msgProp) ? msgProp.GetString() : null;
+            var errorName = root.TryGetProperty("error", out var errProp) ? errProp.GetString() : null;
+            if (message is not null)
+            {
+                throw new KlauApiException(
+                    errorName ?? "HTTP_ERROR",
+                    message,
+                    (int)response.StatusCode);
+            }
+        }
+        catch (JsonException) { }
+
         throw new KlauApiException(
             "HTTP_ERROR",
             $"Request failed with status {(int)response.StatusCode}: {body}",

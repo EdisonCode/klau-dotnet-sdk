@@ -21,8 +21,9 @@ public class CustomerClientTests
     public async Task ListAsync_SendsCorrectPath()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new List<object>(),
-            new { total = 0, page = 1, pageSize = 100, hasMore = false });
+        // API returns { data: { customers: [...], total: 0 } }
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { customers = new List<object>(), total = 0 });
 
         await client.Customers.ListAsync();
 
@@ -35,8 +36,8 @@ public class CustomerClientTests
     public async Task ListAsync_IncludesSearchParam()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new List<object>(),
-            new { total = 0, page = 1, pageSize = 100, hasMore = false });
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { customers = new List<object>(), total = 0 });
 
         await client.Customers.ListAsync(search: "Acme");
 
@@ -48,8 +49,8 @@ public class CustomerClientTests
     public async Task ListAsync_IncludesIncludeInactiveParam()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new List<object>(),
-            new { total = 0, page = 1, pageSize = 100, hasMore = false });
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { customers = new List<object>(), total = 0 });
 
         await client.Customers.ListAsync(includeInactive: true);
 
@@ -77,11 +78,11 @@ public class CustomerClientTests
     // --- CreateAsync ---
 
     [Fact]
-    public async Task CreateAsync_SendsPostWithRequiredName()
+    public async Task CreateAsync_ReturnsCustomerId()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "cust-new", name = "New Customer",
-            isActive = true, createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        // API returns { data: { customerId: "cust-new" } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { customerId = "cust-new" });
 
         var request = new CreateCustomerRequest
         {
@@ -90,7 +91,7 @@ public class CustomerClientTests
             ContactPhone = "555-1234",
             ContactEmail = "john@example.com"
         };
-        var customer = await client.Customers.CreateAsync(request);
+        var customerId = await client.Customers.CreateAsync(request);
 
         var req = Assert.Single(handler.SentRequests);
         Assert.Equal(HttpMethod.Post, req.Method);
@@ -104,7 +105,7 @@ public class CustomerClientTests
         Assert.Equal("555-1234", root.GetProperty("contactPhone").GetString());
         Assert.Equal("john@example.com", root.GetProperty("contactEmail").GetString());
 
-        Assert.Equal("New Customer", customer.Name);
+        Assert.Equal("cust-new", customerId);
     }
 
     // --- ExternalId deserialization ---

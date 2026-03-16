@@ -88,12 +88,13 @@ public class SerializationTests
     public async Task CreateJobRequest_SerializesWithCamelCase()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED",
-            customerName = "Test", createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        // API returns { data: { jobId: "j-1" } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { jobId = "j-1" });
 
         await client.Jobs.CreateAsync(new CreateJobRequest
         {
             CustomerId = "cust-1",
+            SiteId = "site-1",
             SiteAddress = "456 Oak Ave",
             Type = JobType.DELIVERY,
             ContainerSize = 20,
@@ -124,12 +125,12 @@ public class SerializationTests
     public async Task NullOptionalFields_OmittedFromJson()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED",
-            customerName = "Test", createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        handler.EnqueueResponse(HttpStatusCode.OK, new { jobId = "j-1" });
 
         await client.Jobs.CreateAsync(new CreateJobRequest
         {
             CustomerId = "cust-1",
+            SiteId = "site-1",
             Type = JobType.DELIVERY,
             RequestedDate = "2026-03-14"
             // All other optional fields left null
@@ -141,10 +142,10 @@ public class SerializationTests
 
         // Required fields should be present
         Assert.True(root.TryGetProperty("customerId", out _));
+        Assert.True(root.TryGetProperty("siteId", out _));
         Assert.True(root.TryGetProperty("type", out _));
 
         // Null optional fields should be omitted
-        Assert.False(root.TryGetProperty("siteId", out _));
         Assert.False(root.TryGetProperty("notes", out _));
         Assert.False(root.TryGetProperty("externalId", out _));
         Assert.False(root.TryGetProperty("timeWindow", out _));
@@ -159,12 +160,12 @@ public class SerializationTests
     public async Task Enums_SerializeAsSnakeCaseUpperStrings()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DUMP_RETURN", status = "UNASSIGNED",
-            customerName = "Test", createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        handler.EnqueueResponse(HttpStatusCode.OK, new { jobId = "j-1" });
 
         await client.Jobs.CreateAsync(new CreateJobRequest
         {
             CustomerId = "cust-1",
+            SiteId = "site-1",
             Type = JobType.DUMP_RETURN,
             RequestedDate = "2026-03-14",
             Priority = JobPriority.URGENT,
@@ -181,16 +182,15 @@ public class SerializationTests
     }
 
     [Fact]
-    public async Task ExternalId_RoundTripsCorrectly()
+    public async Task ExternalId_SerializedInCreateRequest()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED",
-            customerName = "Test", externalId = "erp-wo-7890",
-            createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        handler.EnqueueResponse(HttpStatusCode.OK, new { jobId = "j-1" });
 
         await client.Jobs.CreateAsync(new CreateJobRequest
         {
             CustomerId = "cust-1",
+            SiteId = "site-1",
             Type = JobType.DELIVERY,
             RequestedDate = "2026-03-14",
             ExternalId = "erp-wo-7890"
@@ -200,9 +200,12 @@ public class SerializationTests
         var body = handler.SentBodies[0]!;
         using var doc = JsonDocument.Parse(body);
         Assert.Equal("erp-wo-7890", doc.RootElement.GetProperty("externalId").GetString());
+    }
 
-        // The mock response also includes externalId, but CreateAsync returns the response
-        // object. Let's verify via a separate get:
+    [Fact]
+    public async Task ExternalId_DeserializedInGetResponse()
+    {
+        var (client, handler) = CreateClient();
         handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED",
             customerName = "Test", externalId = "erp-wo-7890",
             createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });

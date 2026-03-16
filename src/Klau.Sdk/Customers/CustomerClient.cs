@@ -29,8 +29,8 @@ public sealed class CustomerClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<Customer>>(path, _tenantId, ct);
-        return new PagedResult<Customer>(response.Data, response.Meta);
+        var response = await _http.GetListAsync<Customer>(path, "customers", _tenantId, ct);
+        return new PagedResult<Customer>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
     }
 
     /// <summary>
@@ -50,15 +50,16 @@ public sealed class CustomerClient
     }
 
     /// <summary>
-    /// Create a new customer.
+    /// Create a new customer. Returns the created customer ID.
+    /// Use <see cref="GetAsync"/> to fetch the full customer after creation.
     /// </summary>
-    public async Task<Customer> CreateAsync(CreateCustomerRequest request, CancellationToken ct = default)
+    public async Task<string> CreateAsync(CreateCustomerRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Customer>("api/v1/customers", request, _tenantId, ct);
+        return await _http.PostCreateAsync("api/v1/customers", request, "customerId", _tenantId, ct);
     }
 
     /// <summary>
-    /// Update an existing customer.
+    /// Update an existing customer. Returns the updated customer.
     /// </summary>
     public async Task<Customer> UpdateAsync(string id, UpdateCustomerRequest request, CancellationToken ct = default)
     {

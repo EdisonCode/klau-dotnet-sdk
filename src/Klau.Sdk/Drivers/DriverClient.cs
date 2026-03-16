@@ -24,8 +24,8 @@ public sealed class DriverClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<Driver>>(path, _tenantId, ct);
-        return new PagedResult<Driver>(response.Data, response.Meta);
+        var response = await _http.GetListAsync<Driver>(path, "drivers", _tenantId, ct);
+        return new PagedResult<Driver>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
     }
 
     public async Task<Driver> GetAsync(string id, CancellationToken ct = default)
@@ -33,11 +33,18 @@ public sealed class DriverClient
         return await _http.GetAsync<Driver>($"api/v1/drivers/{id}", _tenantId, ct);
     }
 
-    public async Task<Driver> CreateAsync(CreateDriverRequest request, CancellationToken ct = default)
+    /// <summary>
+    /// Create a new driver. Returns the created driver ID.
+    /// Use <see cref="GetAsync"/> to fetch the full driver after creation.
+    /// </summary>
+    public async Task<string> CreateAsync(CreateDriverRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Driver>("api/v1/drivers", request, _tenantId, ct);
+        return await _http.PostCreateAsync("api/v1/drivers", request, "driverId", _tenantId, ct);
     }
 
+    /// <summary>
+    /// Update an existing driver. Returns the updated driver.
+    /// </summary>
     public async Task<Driver> UpdateAsync(string id, UpdateDriverRequest request, CancellationToken ct = default)
     {
         return await _http.PatchAsync<Driver>($"api/v1/drivers/{id}", request, _tenantId, ct);

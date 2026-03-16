@@ -22,8 +22,8 @@ public sealed class YardClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<Yard>>(path, _tenantId, ct);
-        return new PagedResult<Yard>(response.Data, response.Meta);
+        var response = await _http.GetListAsync<Yard>(path, "yards", _tenantId, ct);
+        return new PagedResult<Yard>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
     }
 
     public async Task<Yard> GetAsync(string id, CancellationToken ct = default)
@@ -31,14 +31,18 @@ public sealed class YardClient
         return await _http.GetAsync<Yard>($"api/v1/yards/{id}", _tenantId, ct);
     }
 
-    public async Task<Yard> CreateAsync(CreateYardRequest request, CancellationToken ct = default)
+    /// <summary>
+    /// Create a new yard. Returns the created yard ID.
+    /// Use <see cref="GetAsync"/> to fetch the full yard after creation.
+    /// </summary>
+    public async Task<string> CreateAsync(CreateYardRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Yard>("api/v1/yards", request, _tenantId, ct);
+        return await _http.PostCreateAsync("api/v1/yards", request, "yardId", _tenantId, ct);
     }
 
-    public async Task<Yard> UpdateAsync(string id, UpdateYardRequest request, CancellationToken ct = default)
+    public async Task UpdateAsync(string id, UpdateYardRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Yard>($"api/v1/yards/{id}", request, _tenantId, ct);
+        await _http.PatchAsync<SuccessResponse>($"api/v1/yards/{id}", request, _tenantId, ct);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)

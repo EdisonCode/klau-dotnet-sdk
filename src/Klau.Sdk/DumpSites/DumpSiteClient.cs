@@ -13,7 +13,7 @@ public sealed class DumpSiteClient
         _tenantId = tenantId;
     }
 
-    // ─── Dump Sites ────────────────────────────────────────────────────────
+    // --- Dump Sites ---
 
     public async Task<PagedResult<DumpSite>> ListAsync(
         int page = 1,
@@ -24,8 +24,8 @@ public sealed class DumpSiteClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<DumpSite>>(path, _tenantId, ct);
-        return new PagedResult<DumpSite>(response.Data, response.Meta);
+        var response = await _http.GetListAsync<DumpSite>(path, "dumpSites", _tenantId, ct);
+        return new PagedResult<DumpSite>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
     }
 
     public async Task<DumpSite> GetAsync(string id, CancellationToken ct = default)
@@ -33,14 +33,18 @@ public sealed class DumpSiteClient
         return await _http.GetAsync<DumpSite>($"api/v1/dump-sites/{id}", _tenantId, ct);
     }
 
-    public async Task<DumpSite> CreateAsync(CreateDumpSiteRequest request, CancellationToken ct = default)
+    /// <summary>
+    /// Create a new dump site. Returns the created dump site ID.
+    /// Use <see cref="GetAsync"/> to fetch the full dump site after creation.
+    /// </summary>
+    public async Task<string> CreateAsync(CreateDumpSiteRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<DumpSite>("api/v1/dump-sites", request, _tenantId, ct);
+        return await _http.PostCreateAsync("api/v1/dump-sites", request, "dumpSiteId", _tenantId, ct);
     }
 
-    public async Task<DumpSite> UpdateAsync(string id, UpdateDumpSiteRequest request, CancellationToken ct = default)
+    public async Task UpdateAsync(string id, UpdateDumpSiteRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<DumpSite>($"api/v1/dump-sites/{id}", request, _tenantId, ct);
+        await _http.PatchAsync<SuccessResponse>($"api/v1/dump-sites/{id}", request, _tenantId, ct);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
@@ -48,7 +52,7 @@ public sealed class DumpSiteClient
         await _http.DeleteAsync($"api/v1/dump-sites/{id}", _tenantId, ct);
     }
 
-    // ─── Material Pricing ──────────────────────────────────────────────────
+    // --- Material Pricing ---
 
     /// <summary>
     /// List all material pricing for a dump site.

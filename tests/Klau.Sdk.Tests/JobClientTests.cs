@@ -28,8 +28,9 @@ public class JobClientTests
     public async Task ListAsync_SendsCorrectPath()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new List<object>(),
-            new { total = 0, page = 1, pageSize = 100, hasMore = false });
+        // API returns { data: { jobs: [...], total: 0, page: 1, pageSize: 100, hasMore: false } }
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { jobs = new List<object>(), total = 0, page = 1, pageSize = 100, hasMore = false });
 
         await client.Jobs.ListAsync();
 
@@ -42,8 +43,8 @@ public class JobClientTests
     public async Task ListAsync_IncludesQueryParams()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new List<object>(),
-            new { total = 0, page = 2, pageSize = 50, hasMore = false });
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { jobs = new List<object>(), total = 0, page = 2, pageSize = 50, hasMore = false });
 
         await client.Jobs.ListAsync(date: "2026-03-13", status: JobStatus.ASSIGNED, driverId: "drv-1", page: 2, pageSize: 50);
 
@@ -65,8 +66,8 @@ public class JobClientTests
             new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED", customerName = "Acme",
                   createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" }
         };
-        handler.EnqueueResponse(HttpStatusCode.OK, jobs,
-            new { total = 42, page = 1, pageSize = 100, hasMore = true });
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { jobs, total = 42, page = 1, pageSize = 100, hasMore = true });
 
         var result = await client.Jobs.ListAsync();
 
@@ -95,12 +96,11 @@ public class JobClientTests
     // --- CreateAsync ---
 
     [Fact]
-    public async Task CreateAsync_SendsCorrectBodyWithAllFields()
+    public async Task CreateAsync_ReturnsJobId()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-new", type = "DELIVERY", status = "UNASSIGNED",
-            customerName = "Test", externalId = "ext-99", createdAt = "2026-01-01T00:00:00Z",
-            updatedAt = "2026-01-01T00:00:00Z" });
+        // API returns { data: { jobId: "j-new" } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { jobId = "j-new" });
 
         var request = new CreateJobRequest
         {
@@ -117,7 +117,7 @@ public class JobClientTests
             ContainerNumber = "C-100"
         };
 
-        var job = await client.Jobs.CreateAsync(request);
+        var jobId = await client.Jobs.CreateAsync(request);
 
         var req = Assert.Single(handler.SentRequests);
         Assert.Equal(HttpMethod.Post, req.Method);
@@ -138,7 +138,7 @@ public class JobClientTests
         Assert.Equal("dump-1", root.GetProperty("dumpSiteId").GetString());
         Assert.Equal("C-100", root.GetProperty("containerNumber").GetString());
 
-        Assert.Equal("ext-99", job.ExternalId);
+        Assert.Equal("j-new", jobId);
     }
 
     // --- UpdateAsync ---
@@ -165,9 +165,8 @@ public class JobClientTests
     public async Task AssignAsync_SendsCorrectPathAndBody()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "ASSIGNED",
-            customerName = "Test", driverId = "drv-1", truckId = "trk-1",
-            createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        // API returns { data: { success: true } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { success = true });
 
         var request = new AssignJobRequest
         {
@@ -177,7 +176,7 @@ public class JobClientTests
             ScheduledDate = "2026-03-15",
             EstimatedStartTime = "08:30"
         };
-        var job = await client.Jobs.AssignAsync("j-1", request);
+        var result = await client.Jobs.AssignAsync("j-1", request);
 
         var req = Assert.Single(handler.SentRequests);
         Assert.Equal(HttpMethod.Post, req.Method);
@@ -192,7 +191,7 @@ public class JobClientTests
         Assert.Equal("2026-03-15", root.GetProperty("scheduledDate").GetString());
         Assert.Equal("08:30", root.GetProperty("estimatedStartTime").GetString());
 
-        Assert.Equal("ASSIGNED", job.Status.ToString());
+        Assert.True(result.Success);
     }
 
     // --- UnassignAsync ---
@@ -201,14 +200,16 @@ public class JobClientTests
     public async Task UnassignAsync_SendsPostToCorrectPath()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED",
-            customerName = "Test", createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        // API returns { data: { jobId: "j-1", previousDriverId: "drv-1" } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { jobId = "j-1", previousDriverId = "drv-1" });
 
-        await client.Jobs.UnassignAsync("j-1");
+        var result = await client.Jobs.UnassignAsync("j-1");
 
         var req = Assert.Single(handler.SentRequests);
         Assert.Equal(HttpMethod.Post, req.Method);
         Assert.EndsWith("api/v1/jobs/j-1/unassign", req.RequestUri!.AbsolutePath);
+        Assert.Equal("j-1", result.JobId);
+        Assert.Equal("drv-1", result.PreviousDriverId);
     }
 
     // --- CancelAsync ---
@@ -232,15 +233,13 @@ public class JobClientTests
     public async Task StartAsync_SendsPostToCorrectPath()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "IN_PROGRESS",
-            customerName = "Test", createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        handler.EnqueueResponse(HttpStatusCode.OK);
 
-        var job = await client.Jobs.StartAsync("j-1");
+        await client.Jobs.StartAsync("j-1");
 
         var req = Assert.Single(handler.SentRequests);
         Assert.Equal(HttpMethod.Post, req.Method);
         Assert.EndsWith("api/v1/jobs/j-1/start", req.RequestUri!.AbsolutePath);
-        Assert.Equal(JobStatus.IN_PROGRESS, job.Status);
     }
 
     // --- CompleteAsync ---
@@ -249,15 +248,13 @@ public class JobClientTests
     public async Task CompleteAsync_SendsPostToCorrectPath()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "COMPLETED",
-            customerName = "Test", createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+        handler.EnqueueResponse(HttpStatusCode.OK);
 
-        var job = await client.Jobs.CompleteAsync("j-1");
+        await client.Jobs.CompleteAsync("j-1");
 
         var req = Assert.Single(handler.SentRequests);
         Assert.Equal(HttpMethod.Post, req.Method);
         Assert.EndsWith("api/v1/jobs/j-1/complete", req.RequestUri!.AbsolutePath);
-        Assert.Equal(JobStatus.COMPLETED, job.Status);
     }
 
     // --- DeleteAsync ---

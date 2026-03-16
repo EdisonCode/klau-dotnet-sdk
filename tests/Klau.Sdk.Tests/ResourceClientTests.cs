@@ -25,16 +25,13 @@ public class ResourceClientTests
     // ─── Drivers ───────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Drivers_CreateAsync_SendsCorrectBody()
+    public async Task Drivers_CreateAsync_ReturnsDriverId()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new
-        {
-            id = "drv-1", name = "John Smith", isActive = true,
-            createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z"
-        });
+        // API returns { data: { driverId: "drv-1" } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { driverId = "drv-1" });
 
-        var driver = await client.Drivers.CreateAsync(new CreateDriverRequest
+        var driverId = await client.Drivers.CreateAsync(new CreateDriverRequest
         {
             Name = "John Smith",
             DefaultTruckId = "trk-1",
@@ -51,37 +48,35 @@ public class ResourceClientTests
         Assert.Equal("trk-1", doc.RootElement.GetProperty("defaultTruckId").GetString());
         Assert.Equal("yard-1", doc.RootElement.GetProperty("homeYardId").GetString());
 
-        Assert.Equal("drv-1", driver.Id);
+        Assert.Equal("drv-1", driverId);
     }
 
     [Fact]
     public async Task Drivers_ListAsync_ReturnsPagedResult()
     {
         var (client, handler) = CreateClient();
+        // API returns { data: { drivers: [...], total: 1 } }
         handler.EnqueueResponse(HttpStatusCode.OK,
-            new[] { new { id = "drv-1", name = "John", isActive = true,
-                createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" } },
-            new { total = 1, page = 1, pageSize = 100, hasMore = false });
+            new { drivers = new[] { new { id = "drv-1", name = "John", isActive = true,
+                createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" } }, total = 1 });
 
         var result = await client.Drivers.ListAsync();
 
         Assert.Single(result.Items);
         Assert.Equal("John", result.Items[0].Name);
+        Assert.Equal(1, result.Total);
     }
 
     // ─── Trucks ────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Trucks_CreateAsync_SendsCompatibleSizes()
+    public async Task Trucks_CreateAsync_ReturnsTruckId()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new
-        {
-            id = "trk-1", number = "T-001", compatibleSizes = new[] { 20, 30, 40 }, isActive = true,
-            createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z"
-        });
+        // API returns { data: { truckId: "trk-1" } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { truckId = "trk-1" });
 
-        var truck = await client.Trucks.CreateAsync(new CreateTruckRequest
+        var truckId = await client.Trucks.CreateAsync(new CreateTruckRequest
         {
             Number = "T-001",
             CompatibleSizes = [20, 30, 40],
@@ -94,24 +89,35 @@ public class ResourceClientTests
         var sizes = doc.RootElement.GetProperty("compatibleSizes");
         Assert.Equal(3, sizes.GetArrayLength());
 
-        Assert.Equal("trk-1", truck.Id);
-        Assert.Equal(3, truck.CompatibleSizes.Count);
+        Assert.Equal("trk-1", truckId);
+    }
+
+    [Fact]
+    public async Task Trucks_ListAsync_ReturnsPagedResult()
+    {
+        var (client, handler) = CreateClient();
+        // API returns { data: { trucks: [...], total: 1 } }
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { trucks = new[] { new { id = "trk-1", number = "T-001", compatibleSizes = new[] { 20, 30, 40 }, isActive = true,
+                createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" } }, total = 1 });
+
+        var result = await client.Trucks.ListAsync();
+
+        Assert.Single(result.Items);
+        Assert.Equal("T-001", result.Items[0].Number);
+        Assert.Equal(3, result.Items[0].CompatibleSizes.Count);
     }
 
     // ─── Yards ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Yards_CreateAsync_SendsIsDefault()
+    public async Task Yards_CreateAsync_ReturnsYardId()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new
-        {
-            id = "yard-1", name = "Main Yard", address = "100 Industrial Blvd",
-            isDefault = true, isActive = true,
-            createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z"
-        });
+        // API returns { data: { yardId: "yard-1" } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { yardId = "yard-1" });
 
-        var yard = await client.Yards.CreateAsync(new CreateYardRequest
+        var yardId = await client.Yards.CreateAsync(new CreateYardRequest
         {
             Name = "Main Yard",
             Address = "100 Industrial Blvd",
@@ -125,24 +131,56 @@ public class ResourceClientTests
         using var doc = JsonDocument.Parse(body);
         Assert.True(doc.RootElement.GetProperty("isDefault").GetBoolean());
 
-        Assert.True(yard.IsDefault);
+        Assert.Equal("yard-1", yardId);
+    }
+
+    [Fact]
+    public async Task Yards_GetAsync_DeserializesLatLng()
+    {
+        var (client, handler) = CreateClient();
+        // API returns latitude/longitude (not lat/lng)
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            id = "yard-1", name = "Main Yard", address = "100 Industrial Blvd",
+            latitude = 40.2732, longitude = -76.8867,
+            isDefault = true, isActive = true,
+            createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z"
+        });
+
+        var yard = await client.Yards.GetAsync("yard-1");
+
+        Assert.Equal(40.2732, yard.Latitude);
+        Assert.Equal(-76.8867, yard.Longitude);
+    }
+
+    [Fact]
+    public async Task Yards_ListAsync_ReturnsPagedResult()
+    {
+        var (client, handler) = CreateClient();
+        // API returns { data: { yards: [...], total: 1 } }
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { yards = new[] { new { id = "yard-1", name = "Main Yard", address = "100 Industrial Blvd",
+                latitude = 40.2732, longitude = -76.8867,
+                isDefault = true, isActive = true,
+                createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" } }, total = 1 });
+
+        var result = await client.Yards.ListAsync();
+
+        Assert.Single(result.Items);
+        Assert.Equal("Main Yard", result.Items[0].Name);
+        Assert.Equal(40.2732, result.Items[0].Latitude);
     }
 
     // ─── Dump Sites ────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DumpSites_CreateAsync_SendsCorrectBody()
+    public async Task DumpSites_CreateAsync_ReturnsDumpSiteId()
     {
         var (client, handler) = CreateClient();
-        handler.EnqueueResponse(HttpStatusCode.OK, new
-        {
-            id = "ds-1", name = "Central Landfill", address = "500 Dump Rd",
-            acceptedSizes = new[] { 20, 30, 40 }, materialPricing = Array.Empty<object>(),
-            isActive = true,
-            createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z"
-        });
+        // API returns { data: { dumpSiteId: "ds-1", geocoded: true } }
+        handler.EnqueueResponse(HttpStatusCode.OK, new { dumpSiteId = "ds-1", geocoded = true });
 
-        var site = await client.DumpSites.CreateAsync(new CreateDumpSiteRequest
+        var dumpSiteId = await client.DumpSites.CreateAsync(new CreateDumpSiteRequest
         {
             Name = "Central Landfill",
             Address = "500 Dump Rd",
@@ -155,7 +193,23 @@ public class ResourceClientTests
 
         var req = Assert.Single(handler.SentRequests);
         Assert.EndsWith("api/v1/dump-sites", req.RequestUri!.AbsolutePath);
-        Assert.Equal("ds-1", site.Id);
+        Assert.Equal("ds-1", dumpSiteId);
+    }
+
+    [Fact]
+    public async Task DumpSites_ListAsync_ReturnsPagedResult()
+    {
+        var (client, handler) = CreateClient();
+        // API returns { data: { dumpSites: [...], total: 1 } }
+        handler.EnqueueResponse(HttpStatusCode.OK,
+            new { dumpSites = new[] { new { id = "ds-1", name = "Central Landfill", address = "500 Dump Rd",
+                acceptedSizes = new[] { 20, 30, 40 }, materialPricing = Array.Empty<object>(),
+                isActive = true, createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" } }, total = 1 });
+
+        var result = await client.DumpSites.ListAsync();
+
+        Assert.Single(result.Items);
+        Assert.Equal("Central Landfill", result.Items[0].Name);
     }
 
     [Fact]
@@ -188,10 +242,10 @@ public class ResourceClientTests
     public async Task TenantScope_ExposesAllResourceClients()
     {
         var (client, handler) = CreateClient();
+        // API returns { data: { drivers: [...], total: 1 } }
         handler.EnqueueResponse(HttpStatusCode.OK,
-            new[] { new { id = "drv-1", name = "Driver", isActive = true,
-                createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" } },
-            new { total = 1, page = 1, pageSize = 100, hasMore = false });
+            new { drivers = new[] { new { id = "drv-1", name = "Driver", isActive = true,
+                createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" } }, total = 1 });
 
         var scope = client.ForTenant("tenant-1");
         var drivers = await scope.Drivers.ListAsync();

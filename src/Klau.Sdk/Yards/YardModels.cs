@@ -22,11 +22,11 @@ public sealed record Yard
     [JsonPropertyName("zip")]
     public string? Zip { get; init; }
 
-    [JsonPropertyName("lat")]
-    public double? Lat { get; init; }
+    [JsonPropertyName("latitude")]
+    public double? Latitude { get; init; }
 
-    [JsonPropertyName("lng")]
-    public double? Lng { get; init; }
+    [JsonPropertyName("longitude")]
+    public double? Longitude { get; init; }
 
     [JsonPropertyName("isDefault")]
     public bool IsDefault { get; init; }

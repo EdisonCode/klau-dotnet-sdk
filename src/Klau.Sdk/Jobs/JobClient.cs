@@ -31,8 +31,8 @@ public sealed class JobClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<Job>>(path, _tenantId, ct);
-        return new PagedResult<Job>(response.Data, response.Meta);
+        var response = await _http.GetListAsync<Job>(path, "jobs", _tenantId, ct);
+        return new PagedResult<Job>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
     }
 
     /// <summary>
@@ -44,12 +44,12 @@ public sealed class JobClient
     }
 
     /// <summary>
-    /// Create a new job. When createMissing is true, unknown customers and sites
-    /// referenced by name will be auto-created as stubs.
+    /// Create a new job. Returns the created job ID.
+    /// Use <see cref="GetAsync"/> to fetch the full job after creation.
     /// </summary>
-    public async Task<Job> CreateAsync(CreateJobRequest request, CancellationToken ct = default)
+    public async Task<string> CreateAsync(CreateJobRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>("api/v1/jobs", request, _tenantId, ct);
+        return await _http.PostCreateAsync("api/v1/jobs", request, "jobId", _tenantId, ct);
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public sealed class JobClient
     }
 
     /// <summary>
-    /// Update an existing job.
+    /// Update an existing job. Returns the updated job.
     /// </summary>
     public async Task<Job> UpdateAsync(string id, UpdateJobRequest request, CancellationToken ct = default)
     {
@@ -73,19 +73,19 @@ public sealed class JobClient
     }
 
     /// <summary>
-    /// Assign a job to a driver and truck.
+    /// Assign a job to a driver and truck. Returns assignment result.
     /// </summary>
-    public async Task<Job> AssignAsync(string id, AssignJobRequest request, CancellationToken ct = default)
+    public async Task<AssignJobResult> AssignAsync(string id, AssignJobRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/assign", request, _tenantId, ct);
+        return await _http.PostAsync<AssignJobResult>($"api/v1/jobs/{id}/assign", request, _tenantId, ct);
     }
 
     /// <summary>
-    /// Unassign a job from its current driver.
+    /// Unassign a job from its current driver. Returns unassignment result.
     /// </summary>
-    public async Task<Job> UnassignAsync(string id, CancellationToken ct = default)
+    public async Task<UnassignJobResult> UnassignAsync(string id, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/unassign", null, _tenantId, ct);
+        return await _http.PostAsync<UnassignJobResult>($"api/v1/jobs/{id}/unassign", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -99,17 +99,17 @@ public sealed class JobClient
     /// <summary>
     /// Start a job (ASSIGNED -> IN_PROGRESS).
     /// </summary>
-    public async Task<Job> StartAsync(string id, CancellationToken ct = default)
+    public async Task StartAsync(string id, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/start", null, _tenantId, ct);
+        await _http.PostAsync($"api/v1/jobs/{id}/start", null, _tenantId, ct);
     }
 
     /// <summary>
     /// Complete a job (IN_PROGRESS -> COMPLETED).
     /// </summary>
-    public async Task<Job> CompleteAsync(string id, CancellationToken ct = default)
+    public async Task CompleteAsync(string id, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Job>($"api/v1/jobs/{id}/complete", null, _tenantId, ct);
+        await _http.PostAsync($"api/v1/jobs/{id}/complete", null, _tenantId, ct);
     }
 
     /// <summary>

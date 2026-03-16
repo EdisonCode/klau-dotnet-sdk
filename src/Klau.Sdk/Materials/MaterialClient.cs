@@ -16,7 +16,7 @@ public sealed class MaterialClient
     /// <summary>
     /// List materials with optional filters.
     /// </summary>
-    public async Task<List<Material>> ListAsync(
+    public async Task<PagedResult<Material>> ListAsync(
         bool? activeOnly = null,
         bool? storefrontOnly = null,
         CancellationToken ct = default)
@@ -25,7 +25,8 @@ public sealed class MaterialClient
             ("activeOnly", activeOnly),
             ("storefrontOnly", storefrontOnly));
 
-        return await _http.GetAsync<List<Material>>(path, _tenantId, ct);
+        var response = await _http.GetListAsync<Material>(path, "materials", _tenantId, ct);
+        return new PagedResult<Material>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
     }
 
     /// <summary>
@@ -37,19 +38,21 @@ public sealed class MaterialClient
     }
 
     /// <summary>
-    /// Create a custom material.
+    /// Create a custom material. Returns the created material ID.
+    /// Use <see cref="GetAsync"/> to fetch the full material after creation.
     /// </summary>
-    public async Task<Material> CreateAsync(CreateMaterialRequest request, CancellationToken ct = default)
+    public async Task<string> CreateAsync(CreateMaterialRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Material>("api/v1/materials", request, _tenantId, ct);
+        return await _http.PostCreateAsync("api/v1/materials", request, "materialId", _tenantId, ct);
     }
 
     /// <summary>
     /// Update a material.
     /// </summary>
-    public async Task<Material> UpdateAsync(string id, UpdateMaterialRequest request, CancellationToken ct = default)
+    public async Task UpdateAsync(string id, UpdateMaterialRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Material>($"api/v1/materials/{id}", request, _tenantId, ct);
+        // API uses PUT for material updates and returns { success: true }
+        await _http.PutAsync<SuccessResponse>($"api/v1/materials/{id}", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -65,17 +68,20 @@ public sealed class MaterialClient
     /// </summary>
     public async Task<List<MaterialTemplate>> ListTemplatesAsync(CancellationToken ct = default)
     {
-        return await _http.GetAsync<List<MaterialTemplate>>("api/v1/materials/templates", _tenantId, ct);
+        // API returns { data: { templates: [...] } }
+        var response = await _http.GetListAsync<MaterialTemplate>("api/v1/materials/templates", "templates", _tenantId, ct);
+        return response.Items;
     }
 
     /// <summary>
     /// Clone industry templates into the tenant's material library.
+    /// Returns a result with the number of created and skipped materials.
     /// </summary>
-    public async Task<List<Material>> SeedFromTemplateAsync(
+    public async Task<SeedFromTemplateResult> SeedFromTemplateAsync(
         List<string> templateCodes,
         CancellationToken ct = default)
     {
-        return await _http.PostAsync<List<Material>>(
+        return await _http.PostAsync<SeedFromTemplateResult>(
             "api/v1/materials/seed-from-template",
             new { templateCodes },
             _tenantId,

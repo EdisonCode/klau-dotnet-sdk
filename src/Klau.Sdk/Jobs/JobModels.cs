@@ -87,7 +87,7 @@ public sealed record CreateJobRequest
     public required string CustomerId { get; init; }
 
     [JsonPropertyName("siteId")]
-    public string? SiteId { get; init; }
+    public required string SiteId { get; init; }
 
     [JsonPropertyName("siteAddress")]
     public string? SiteAddress { get; init; }
@@ -205,4 +205,28 @@ public sealed record AssignJobRequest
 
     [JsonPropertyName("estimatedStartTime")]
     public string? EstimatedStartTime { get; init; }
+}
+
+/// <summary>
+/// Result from the assign job endpoint.
+/// </summary>
+public sealed record AssignJobResult
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; init; }
+}
+
+/// <summary>
+/// Result from the unassign job endpoint.
+/// </summary>
+public sealed record UnassignJobResult
+{
+    [JsonPropertyName("jobId")]
+    public string JobId { get; init; } = string.Empty;
+
+    [JsonPropertyName("previousDriverId")]
+    public string? PreviousDriverId { get; init; }
+
+    [JsonPropertyName("previousDispatchId")]
+    public string? PreviousDispatchId { get; init; }
 }

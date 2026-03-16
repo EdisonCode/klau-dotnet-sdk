@@ -22,8 +22,8 @@ public sealed class TruckClient
             ("page", page),
             ("pageSize", pageSize));
 
-        var response = await _http.GetResponseAsync<List<Truck>>(path, _tenantId, ct);
-        return new PagedResult<Truck>(response.Data, response.Meta);
+        var response = await _http.GetListAsync<Truck>(path, "trucks", _tenantId, ct);
+        return new PagedResult<Truck>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
     }
 
     public async Task<Truck> GetAsync(string id, CancellationToken ct = default)
@@ -31,14 +31,18 @@ public sealed class TruckClient
         return await _http.GetAsync<Truck>($"api/v1/trucks/{id}", _tenantId, ct);
     }
 
-    public async Task<Truck> CreateAsync(CreateTruckRequest request, CancellationToken ct = default)
+    /// <summary>
+    /// Create a new truck. Returns the created truck ID.
+    /// Use <see cref="GetAsync"/> to fetch the full truck after creation.
+    /// </summary>
+    public async Task<string> CreateAsync(CreateTruckRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Truck>("api/v1/trucks", request, _tenantId, ct);
+        return await _http.PostCreateAsync("api/v1/trucks", request, "truckId", _tenantId, ct);
     }
 
-    public async Task<Truck> UpdateAsync(string id, UpdateTruckRequest request, CancellationToken ct = default)
+    public async Task UpdateAsync(string id, UpdateTruckRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Truck>($"api/v1/trucks/{id}", request, _tenantId, ct);
+        await _http.PatchAsync<SuccessResponse>($"api/v1/trucks/{id}", request, _tenantId, ct);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)

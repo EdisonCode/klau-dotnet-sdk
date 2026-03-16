@@ -86,3 +86,15 @@ public sealed record UpdateMaterialRequest
     [JsonPropertyName("storefrontSortOrder")]
     public int? StorefrontSortOrder { get; init; }
 }
+
+/// <summary>
+/// Result from the seed-from-template endpoint.
+/// </summary>
+public sealed record SeedFromTemplateResult
+{
+    [JsonPropertyName("created")]
+    public int Created { get; init; }
+
+    [JsonPropertyName("skipped")]
+    public int Skipped { get; init; }
+}

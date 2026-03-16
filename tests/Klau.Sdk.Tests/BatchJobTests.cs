@@ -82,8 +82,8 @@ public class BatchJobTests
 
         var jobs = new List<CreateJobRequest>
         {
-            new() { CustomerId = "cust-1", Type = JobType.DELIVERY, RequestedDate = "2026-03-15", ExternalId = "ext-1" },
-            new() { CustomerId = "cust-2", Type = JobType.DELIVERY, RequestedDate = "2026-03-15", ExternalId = "ext-bad" }
+            new() { CustomerId = "cust-1", SiteId = "site-1", Type = JobType.DELIVERY, RequestedDate = "2026-03-15", ExternalId = "ext-1" },
+            new() { CustomerId = "cust-2", SiteId = "site-2", Type = JobType.DELIVERY, RequestedDate = "2026-03-15", ExternalId = "ext-bad" }
         };
 
         var result = await client.Jobs.CreateBatchAsync(jobs);
@@ -110,6 +110,7 @@ public class BatchJobTests
             new()
             {
                 CustomerId = "cust-1",
+                SiteId = "site-1",
                 Type = JobType.SWAP,
                 ContainerSize = 40,
                 RequestedDate = "2026-03-20",

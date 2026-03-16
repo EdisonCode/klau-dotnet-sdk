@@ -188,10 +188,11 @@ public sealed class JobSyncService : BackgroundService
     /// </summary>
     private static CreateJobRequest MapToCreateRequest(SourceJob job) => new()
     {
-        // In production, look up or auto-create the customer in Klau.
-        // For now we use a placeholder — Klau's createMissing option
+        // In production, look up or auto-create the customer and site in Klau.
+        // For now we use placeholders — Klau's createMissing option
         // can auto-create customer stubs from the job data.
         CustomerId = "default",
+        SiteId = "default",  // Look up or create a Klau site from job.Address
         Type = MapJobType(job.ServiceType),
         ContainerSize = job.ContainerSize,
         RequestedDate = job.RequestedDate,

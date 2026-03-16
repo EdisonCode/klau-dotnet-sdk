@@ -118,4 +118,57 @@ public class ErrorHandlingTests
         Assert.Equal("NOT_FOUND", ex.ErrorCode);
         Assert.Equal(404, ex.StatusCode);
     }
+
+    [Fact]
+    public async Task FastifyNativeError_MapsToKlauApiException()
+    {
+        var (client, handler) = CreateClient();
+        // Fastify returns { statusCode, error, message } instead of { error: { code, message } }
+        handler.EnqueueRawResponse(HttpStatusCode.NotFound,
+            """{"statusCode":404,"error":"Not Found","message":"Route GET:/api/v1/jobs/j-missing not found"}""",
+            "application/json");
+
+        var ex = await Assert.ThrowsAsync<KlauApiException>(
+            () => client.Jobs.GetAsync("j-missing"));
+
+        Assert.Equal("Not Found", ex.ErrorCode);
+        Assert.Equal("Route GET:/api/v1/jobs/j-missing not found", ex.Message);
+        Assert.Equal(404, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task FastifyValidationError_MapsToKlauApiException()
+    {
+        var (client, handler) = CreateClient();
+        // Fastify schema validation returns this shape
+        handler.EnqueueRawResponse(HttpStatusCode.BadRequest,
+            """{"statusCode":400,"error":"Bad Request","message":"body must have required property 'siteId'"}""",
+            "application/json");
+
+        var ex = await Assert.ThrowsAsync<KlauApiException>(
+            () => client.Jobs.GetAsync("j-1"));
+
+        Assert.Equal("Bad Request", ex.ErrorCode);
+        Assert.Equal("body must have required property 'siteId'", ex.Message);
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task FastifyErrorWithMessageOnly_MapsToKlauApiException()
+    {
+        var (client, handler) = CreateClient();
+        // Some Fastify errors may omit the "error" field.
+        // Use 422 (not retryable) to avoid needing multiple enqueued responses.
+        handler.EnqueueRawResponse(HttpStatusCode.UnprocessableEntity,
+            """{"statusCode":422,"message":"Service temporarily unavailable"}""",
+            "application/json");
+
+        var ex = await Assert.ThrowsAsync<KlauApiException>(
+            () => client.Jobs.GetAsync("j-1"));
+
+        // Falls back to HTTP_ERROR when "error" field is missing
+        Assert.Equal("HTTP_ERROR", ex.ErrorCode);
+        Assert.Equal("Service temporarily unavailable", ex.Message);
+        Assert.Equal(422, ex.StatusCode);
+    }
 }
