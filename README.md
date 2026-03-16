@@ -6,7 +6,7 @@ Official .NET SDK for the [Klau](https://getklau.com) API. Built for dev teams i
 dotnet add package Klau.Sdk
 ```
 
-Requires .NET 9.0+. No external dependencies.
+Requires .NET 9.0+. Dependencies: `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Diagnostics.HealthChecks`.
 
 ## Quick Start
 
@@ -503,20 +503,35 @@ await klau.Company.UpdateAsync(new UpdateCompanyRequest
 
 ## Error Handling
 
-All API errors throw `KlauApiException` with structured error information:
+All API errors throw `KlauApiException` with structured properties for programmatic routing:
 
 ```csharp
 try
 {
     await klau.Jobs.GetAsync("nonexistent-id");
 }
+catch (KlauApiException ex) when (ex.IsRateLimit)
+{
+    // Wait and retry — RetryAfter is parsed from the Retry-After header
+    await Task.Delay(ex.RetryAfter ?? TimeSpan.FromSeconds(5));
+}
+catch (KlauApiException ex) when (ex.IsValidation)
+{
+    // Field-level validation errors are parsed into typed objects
+    foreach (var err in ex.ValidationErrors)
+        Console.WriteLine($"  {err.Field}: {err.Message}");
+}
+catch (KlauApiException ex) when (ex.IsNotFound)
+{
+    Console.WriteLine($"Resource not found: {ex.Message}");
+}
 catch (KlauApiException ex)
 {
-    Console.WriteLine($"Error: {ex.ErrorCode} - {ex.Message}");
-    Console.WriteLine($"HTTP Status: {ex.StatusCode}");
-    // ex.Details contains field-level validation errors when applicable
+    Console.WriteLine($"Error: {ex.ErrorCode} - {ex.Message} (HTTP {ex.StatusCode})");
 }
 ```
+
+Convenience properties: `IsRateLimit`, `IsNotFound`, `IsValidation`, `IsUnauthorized`, `IsInsufficientScope`, `IsConflict`. The `RetryAfter` property (`TimeSpan?`) is available on rate limit errors. `ValidationErrors` (`IReadOnlyList<ValidationDetail>`) provides typed field/message/constraint details.
 
 Common error codes: `VALIDATION_ERROR`, `UNAUTHORIZED`, `NOT_FOUND`, `INSUFFICIENT_SCOPE`, `COMMAND_FAILED`.
 
@@ -524,7 +539,22 @@ The SDK automatically retries transient errors (429, 502, 503, 504) with exponen
 
 ## Pagination
 
-List endpoints return `PagedResult<T>` with pagination metadata:
+Use `ListAllAsync` to iterate all results without manual paging. The SDK handles page advancement automatically:
+
+```csharp
+// Recommended — zero boilerplate
+await foreach (var job in klau.Jobs.ListAllAsync(date: "2026-03-15"))
+    Console.WriteLine($"{job.Type} - {job.CustomerName}");
+
+// With LINQ (requires System.Linq.Async NuGet package)
+var urgent = await klau.Jobs.ListAllAsync(date: "2026-03-15")
+    .Where(j => j.Priority == JobPriority.URGENT)
+    .ToListAsync();
+```
+
+`ListAllAsync` is available on Jobs, Customers, Drivers, Trucks, Yards, DumpSites, and DumpTickets.
+
+For page-level control, use `ListAsync` which returns `PagedResult<T>`:
 
 ```csharp
 var page1 = await klau.Jobs.ListAsync(page: 1, pageSize: 50);
@@ -551,6 +581,92 @@ API keys can be scoped to specific permissions using `action:resource` format:
 Resources: `jobs`, `drivers`, `trucks`, `dispatches`, `customers`, `sites`, `yards`, `dump-sites`, `materials`, `storefronts`, `orders`, `dump-tickets`, `communications`, `intelligence`, `coaching`, `export`, and more.
 
 If a request exceeds the key's scopes, the API returns `403 INSUFFICIENT_SCOPE`.
+
+## ASP.NET Core Integration
+
+### Dependency injection
+
+```csharp
+// Minimal — reads API key from KLAU_API_KEY env var
+builder.Services.AddKlauClient();
+
+// From configuration
+builder.Services.AddKlauClient(opts =>
+    builder.Configuration.GetSection("Klau").Bind(opts));
+
+// Inject via interface
+public class DispatchService(IKlauClient klau)
+{
+    public async Task SyncJobs() =>
+        await foreach (var job in klau.Jobs.ListAllAsync(date: "2026-03-15"))
+            // ...
+}
+```
+
+### Health checks
+
+```csharp
+builder.Services.AddHealthChecks()
+    .AddKlauCheck();  // calls Company.GetAsync to verify connectivity
+```
+
+### OpenTelemetry tracing
+
+Every API call emits a span via `System.Diagnostics.ActivitySource`. Tags include `http.request.method`, `url.path`, `http.response.status_code`, `klau.tenant.id`, and `klau.retry.count`.
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(b => b.AddSource("Klau.Sdk"));
+```
+
+## Idempotency
+
+Use `KlauRequestOptions` to pass idempotency keys on mutation methods. This prevents duplicate creates when ERP queue messages are delivered more than once:
+
+```csharp
+await klau.Jobs.CreateAsync(request, new KlauRequestOptions
+{
+    IdempotencyKey = $"erp-order-{workOrder.ExternalId}",
+    Timeout = TimeSpan.FromSeconds(60),  // per-request timeout override
+});
+```
+
+## Testing
+
+All domain clients have interfaces (`IJobClient`, `IDispatchClient`, etc.) for business-level mocking:
+
+```csharp
+var mockJobs = Substitute.For<IJobClient>();
+mockJobs.ListAsync(date: "2026-03-15").Returns(
+    KlauModelFactory.PagedResult([
+        KlauModelFactory.Job(status: JobStatus.ASSIGNED, driverId: "drv-1"),
+        KlauModelFactory.Job(status: JobStatus.UNASSIGNED),
+    ]));
+
+var service = new YourService(mockJobs);
+```
+
+`KlauModelFactory` provides static factories with sensible defaults for `Job`, `DispatchBoardJob`, `Customer`, `Driver`, `Truck`, `Yard`, `DumpSite`, and `PagedResult<T>`.
+
+For HTTP-level testing, the test helpers include `MockHttpHandler` — see [tests/](tests/Klau.Sdk.Tests/Helpers/).
+
+## Raw API Access
+
+Call endpoints the SDK doesn't cover yet through the full auth/retry infrastructure:
+
+```csharp
+var response = await klau.SendRawAsync(
+    HttpMethod.Get, "api/v1/analytics/route-efficiency?date=2026-03-16");
+var json = await response.Content.ReadAsStringAsync();
+```
+
+## Examples
+
+| Example | Description |
+|---------|-------------|
+| [`CsvJobImport`](examples/CsvJobImport/) | Console app: CSV → batch create → optimize → read assignments |
+| [`WebhookIntegration`](examples/WebhookIntegration/) | Kestrel web app: bidirectional sync with webhooks |
+| [`EnterpriseSimulator`](examples/EnterpriseSimulator/) | Full enterprise pipeline: CSV export → import → optimize → export dispatch plan |
 
 ## License
 
