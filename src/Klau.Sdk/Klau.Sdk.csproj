@@ -7,7 +7,7 @@
 
     <!-- NuGet package metadata -->
     <PackageId>Klau.Sdk</PackageId>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Authors>Jed Dawson</Authors>
     <Company>Klau</Company>
     <Description>Official .NET SDK for the Klau API. Built for dev teams integrating roll-off waste hauling operations into .NET applications.</Description>

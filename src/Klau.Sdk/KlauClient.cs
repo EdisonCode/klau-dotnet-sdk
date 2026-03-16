@@ -1,5 +1,6 @@
 using Klau.Sdk.Authentication;
 using Klau.Sdk.Common;
+using Klau.Sdk.Companies;
 using Klau.Sdk.Customers;
 using Klau.Sdk.Dispatches;
 using Klau.Sdk.Drivers;
@@ -42,6 +43,7 @@ public sealed class KlauClient : IDisposable
     internal const string ApiKeyPrefix = "kl_live_";
 
     public AuthClient Auth { get; }
+    public CompanyClient Company { get; }
     public JobClient Jobs { get; }
     public ImportClient Import { get; }
     public CustomerClient Customers { get; }
@@ -85,6 +87,7 @@ public sealed class KlauClient : IDisposable
         Http = new KlauHttpClient(baseUrl, httpClient, logger);
 
         Auth = new AuthClient(Http);
+        Company = new CompanyClient(Http);
         Jobs = new JobClient(Http);
         Import = new ImportClient(Http);
         Customers = new CustomerClient(Http);
@@ -187,6 +190,7 @@ public sealed class TenantScope
 {
     private readonly string _tenantId;
 
+    public CompanyClient Company { get; }
     public JobClient Jobs { get; }
     public ImportClient Import { get; }
     public CustomerClient Customers { get; }
@@ -207,6 +211,7 @@ public sealed class TenantScope
         _tenantId = tenantId;
         var http = client.Http;
 
+        Company = new CompanyClient(http, tenantId);
         Jobs = new JobClient(http, tenantId);
         Import = new ImportClient(http, tenantId);
         Customers = new CustomerClient(http, tenantId);
