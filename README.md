@@ -20,8 +20,8 @@ using var klau = new KlauClient("kl_live_your_api_key_here");
 // Get today's dispatch board
 var board = await klau.Dispatches.GetBoardAsync("2026-03-15");
 
-foreach (var dispatch in board.Dispatches)
-    Console.WriteLine($"{dispatch.DriverName}: {dispatch.Jobs.Count} jobs");
+foreach (var driver in board.Drivers)
+    Console.WriteLine($"{driver.Name}: {driver.Jobs.Count} jobs, {driver.TotalDriveMinutes} min drive");
 ```
 
 ## Integration Guide: Jobs In, Assignments Out
@@ -76,6 +76,66 @@ foreach (var error in result.Errors)
     Console.WriteLine($"Failed index {error.Index}: {error.Code} - {error.Message}");
 ```
 
+### Alternative: Bulk import with auto-created customers/sites
+
+If your external system doesn't map to Klau customer/site IDs, use the import API instead. It resolves by name, auto-creates missing records, and waits for drive-time cache warm-up so optimization uses accurate truck routing times:
+
+```csharp
+var import = await klau.Import.ImportAndWaitAsync(new ImportJobsRequest
+{
+    Jobs =
+    [
+        new ImportJobRecord
+        {
+            CustomerName = "Acme Construction",
+            SiteName = "Main Office",
+            SiteAddress = "456 Industrial Way",
+            SiteCity = "San Luis Obispo",
+            SiteState = "CA",
+            SiteZip = "93401",
+            JobType = "DELIVERY",
+            ContainerSize = "20",
+            TimeWindow = "MORNING",
+            ExternalId = "WO-1001"
+        },
+        new ImportJobRecord
+        {
+            CustomerName = "Acme Construction",
+            SiteName = "Warehouse",
+            SiteAddress = "789 Commerce Dr",
+            SiteCity = "San Luis Obispo",
+            SiteState = "CA",
+            SiteZip = "93401",
+            JobType = "PICKUP",
+            ContainerSize = "30",
+            ExternalId = "WO-1002"
+        }
+    ]
+});
+
+Console.WriteLine($"Imported: {import.Imported}, Created: {import.CustomersCreated} customers, {import.SitesCreated} sites");
+
+// Drive-time cache is warm — safe to optimize now
+```
+
+`ImportAndWaitAsync` chains three steps: import jobs, poll the batch readiness endpoint until the drive-time cache is warm for any new sites, then return. If you need more control, call `JobsAsync` and `GetReadinessAsync` separately:
+
+```csharp
+var result = await klau.Import.JobsAsync(request);
+
+if (result.BatchId is not null)
+{
+    BatchReadiness readiness;
+    do
+    {
+        await Task.Delay(2000);
+        readiness = await klau.Import.GetReadinessAsync(result.BatchId);
+        Console.WriteLine($"Cache: {readiness.SitesCached}/{readiness.SitesTotal} sites ready");
+    }
+    while (readiness.Status is "warming" or "partial");
+}
+```
+
 ### Step 2: Optimize dispatch
 
 Optimization is async. `OptimizeAndWaitAsync` handles polling for you.
@@ -93,6 +153,7 @@ if (optimization.Status == OptimizationJobStatus.COMPLETED)
     Console.WriteLine($"Plan grade: {r.PlanGrade} ({r.PlanQuality}/100)");
     Console.WriteLine($"Assigned: {r.AssignedJobs}/{r.TotalJobs}");
     Console.WriteLine($"Flow score: {r.FlowScore}/100");
+    Console.WriteLine($"Drive times: {r.DriveTimeSource}"); // "API" (real) or "ESTIMATED" (haversine)
 }
 ```
 
@@ -113,19 +174,25 @@ while (job.Status is OptimizationJobStatus.PENDING or OptimizationJobStatus.RUNN
 
 ### Step 3: Read back assignments
 
-After optimization, read the dispatch board to get driver routes with job sequences:
+After optimization, read the dispatch board to get driver routes with job sequences. Each job includes drive-time data showing how it will be reached:
 
 ```csharp
 var board = await klau.Dispatches.GetBoardAsync("2026-03-15");
 
-foreach (var dispatch in board.Dispatches)
+foreach (var driver in board.Drivers)
 {
-    Console.WriteLine($"\n{dispatch.DriverName} ({dispatch.DriverId}):");
+    Console.WriteLine($"\n{driver.Name} ({driver.Id}): " +
+        $"{driver.TotalDriveMinutes} min drive, {driver.TotalServiceMinutes} min service");
 
-    foreach (var job in dispatch.Jobs.OrderBy(j => j.Sequence))
+    foreach (var job in driver.Jobs.OrderBy(j => j.Sequence))
     {
         Console.WriteLine($"  #{job.Sequence} {job.Type} - {job.CustomerName} " +
             $"({job.ContainerSize}yd) [external: {job.ExternalId}]");
+
+        // Drive-time fields (populated after optimization)
+        Console.WriteLine($"    Drive: {job.DriveToMinutes:F1} min / {job.DriveToMiles:F1} mi " +
+            $"(source: {job.DriveTimeSource})");
+        // DriveTimeSource: "routing_engine" (real truck routing), "cached", "haversine" (estimate), or null
     }
 }
 
@@ -395,6 +462,43 @@ var materials = await klau.Materials.ListAsync(activeOnly: true);
 var templates = await klau.Materials.ListTemplatesAsync();
 await klau.Materials.SeedFromTemplateAsync(
     templates.Select(t => t.Code).ToList());
+```
+
+## Company Settings
+
+Read and update your company's operational configuration. Useful for setting up container sizes, operating hours, and import mappings before running bulk imports.
+
+```csharp
+// Read current settings
+var company = await klau.Company.GetAsync();
+Console.WriteLine($"Container sizes: {string.Join(", ", company.ContainerSizes)}");
+Console.WriteLine($"Hours: {company.WorkdayStart}–{company.WorkdayEnd} {company.Timezone}");
+Console.WriteLine($"Workdays: {string.Join(", ", company.Workdays)}");
+
+// Add a nonstandard container size (e.g. 35-yard)
+var updated = await klau.Company.UpdateAsync(new UpdateCompanyRequest
+{
+    ContainerSizes = [10, 15, 20, 30, 35, 40]
+});
+
+// Configure import mappings (map your ERP service codes to Klau job types)
+await klau.Company.UpdateAsync(new UpdateCompanyRequest
+{
+    ImportServiceCodeMappings =
+    [
+        new ServiceCodeMapping { ExternalCode = "DEL", KlauJobType = "DELIVERY" },
+        new ServiceCodeMapping { ExternalCode = "PU",  KlauJobType = "PICKUP" },
+        new ServiceCodeMapping { ExternalCode = "SW",  KlauJobType = "SWAP" },
+        new ServiceCodeMapping { ExternalCode = "RLO", KlauJobType = "SKIP" }  // skip relay-only codes
+    ]
+});
+
+// Adjust dispatch automation
+await klau.Company.UpdateAsync(new UpdateCompanyRequest
+{
+    AutoPublishDispatches = true,
+    DispatchApprovalThreshold = 80  // auto-publish plans scoring 80+
+});
 ```
 
 ## Error Handling

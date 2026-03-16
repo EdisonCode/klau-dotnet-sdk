@@ -43,3 +43,6 @@ Thumbs.db
 ## Test results
 TestResults/
 *.trx
+
+## Secrets
+.env
