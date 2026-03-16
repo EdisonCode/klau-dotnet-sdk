@@ -5,6 +5,7 @@ using Klau.Sdk.Dispatches;
 using Klau.Sdk.Drivers;
 using Klau.Sdk.DumpSites;
 using Klau.Sdk.DumpTickets;
+using Klau.Sdk.Import;
 using Klau.Sdk.Jobs;
 using Klau.Sdk.Materials;
 using Klau.Sdk.Orders;
@@ -42,6 +43,7 @@ public sealed class KlauClient : IDisposable
 
     public AuthClient Auth { get; }
     public JobClient Jobs { get; }
+    public ImportClient Import { get; }
     public CustomerClient Customers { get; }
     public DispatchClient Dispatches { get; }
     public StorefrontClient Storefronts { get; }
@@ -84,6 +86,7 @@ public sealed class KlauClient : IDisposable
 
         Auth = new AuthClient(Http);
         Jobs = new JobClient(Http);
+        Import = new ImportClient(Http);
         Customers = new CustomerClient(Http);
         Dispatches = new DispatchClient(Http);
         Storefronts = new StorefrontClient(Http);
@@ -185,6 +188,7 @@ public sealed class TenantScope
     private readonly string _tenantId;
 
     public JobClient Jobs { get; }
+    public ImportClient Import { get; }
     public CustomerClient Customers { get; }
     public DispatchClient Dispatches { get; }
     public StorefrontClient Storefronts { get; }
@@ -204,6 +208,7 @@ public sealed class TenantScope
         var http = client.Http;
 
         Jobs = new JobClient(http, tenantId);
+        Import = new ImportClient(http, tenantId);
         Customers = new CustomerClient(http, tenantId);
         Dispatches = new DispatchClient(http, tenantId);
         Storefronts = new StorefrontClient(http, tenantId);
