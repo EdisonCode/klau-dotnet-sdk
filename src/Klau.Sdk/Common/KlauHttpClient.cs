@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -23,6 +24,12 @@ public sealed class KlauHttpClient : IDisposable
     private string? _defaultTenantId;
 
     private const string TenantHeader = "Klau-Tenant-Id";
+
+    /// <summary>
+    /// ActivitySource for OpenTelemetry distributed tracing.
+    /// Consumers opt in with: <c>builder.Services.AddOpenTelemetry().WithTracing(b =&gt; b.AddSource("Klau.Sdk"));</c>
+    /// </summary>
+    public static readonly ActivitySource ActivitySource = new("Klau.Sdk", SdkVersion);
 
     private static readonly string SdkVersion =
         typeof(KlauHttpClient).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
@@ -273,15 +280,27 @@ public sealed class KlauHttpClient : IDisposable
 
     /// <summary>
     /// Send an HTTP request with automatic retry for transient errors.
+    /// Emits OpenTelemetry spans via <see cref="ActivitySource"/>.
     /// </summary>
     private async Task<HttpResponseMessage> SendWithRetry(
         Func<HttpRequestMessage> requestFactory,
         CancellationToken ct)
     {
+        using var activity = ActivitySource.StartActivity("Klau.Api.Request");
+        activity?.SetTag("server.address", _http.BaseAddress?.Host);
+
+        var tenantId = _defaultTenantId;
+        if (tenantId is not null)
+            activity?.SetTag("klau.tenant.id", tenantId);
+
         HttpResponseMessage? lastResponse = null;
+        int totalAttempts = 0;
+        bool spanTagged = false;
 
         for (int attempt = 0; attempt <= MaxRetries; attempt++)
         {
+            totalAttempts = attempt + 1;
+
             if (attempt > 0)
             {
                 var delay = RetryDelays[Math.Min(attempt - 1, RetryDelays.Length - 1)];
@@ -302,10 +321,26 @@ public sealed class KlauHttpClient : IDisposable
             try
             {
                 var request = requestFactory();
+
+                // Tag span with method/path from the first actual request
+                if (!spanTagged && activity is not null)
+                {
+                    var reqPath = request.RequestUri?.AbsolutePath ?? request.RequestUri?.OriginalString ?? "unknown";
+                    activity.DisplayName = $"Klau {request.Method.Method} {reqPath}";
+                    activity.SetTag("http.request.method", request.Method.Method);
+                    activity.SetTag("url.path", reqPath);
+                    spanTagged = true;
+                }
+
                 lastResponse = await _http.SendAsync(request, ct);
 
                 if (!RetryableStatusCodes.Contains(lastResponse.StatusCode))
                 {
+                    activity?.SetTag("http.response.status_code", (int)lastResponse.StatusCode);
+                    if (totalAttempts > 1)
+                        activity?.SetTag("klau.retry.count", totalAttempts - 1);
+                    if (!lastResponse.IsSuccessStatusCode)
+                        activity?.SetStatus(ActivityStatusCode.Error);
                     return lastResponse;
                 }
             }
@@ -326,9 +361,13 @@ public sealed class KlauHttpClient : IDisposable
             }
         }
 
+        activity?.SetTag("klau.retry.count", MaxRetries);
+        activity?.SetStatus(ActivityStatusCode.Error, "All retries exhausted");
+
         // All retries exhausted
         if (lastResponse is not null)
         {
+            activity?.SetTag("http.response.status_code", (int)lastResponse.StatusCode);
             _logger.LogError(
                 "Klau API request failed after {MaxRetries} retries (final status: {StatusCode})",
                 MaxRetries, (int)lastResponse.StatusCode);
