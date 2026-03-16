@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Klau.Sdk.Common;
 
 namespace Klau.Sdk.DumpTickets;
@@ -45,6 +46,29 @@ public sealed class DumpTicketClient
 
         var response = await _http.GetResponseAsync<List<DumpTicket>>(path, _tenantId, ct);
         return new PagedResult<DumpTicket>(response.Data, response.Meta);
+    }
+
+    /// <summary>
+    /// Iterate all dump tickets matching the filters, automatically paging through results.
+    /// </summary>
+    public async IAsyncEnumerable<DumpTicket> ListAllAsync(
+        string? jobId = null,
+        bool? isVerified = null,
+        bool? settlementApplied = null,
+        string? startDate = null,
+        string? endDate = null,
+        int pageSize = 100,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        int page = 1;
+        while (true)
+        {
+            var result = await ListAsync(jobId, isVerified, settlementApplied, startDate, endDate, page, pageSize, ct);
+            foreach (var item in result.Items)
+                yield return item;
+            if (!result.HasMore) break;
+            page++;
+        }
     }
 
     /// <summary>

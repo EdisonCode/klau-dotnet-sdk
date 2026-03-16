@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Customers;
@@ -31,6 +32,26 @@ public sealed class CustomerClient
 
         var response = await _http.GetListAsync<Customer>(path, "customers", _tenantId, ct);
         return new PagedResult<Customer>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
+    }
+
+    /// <summary>
+    /// Iterate all customers matching the filters, automatically paging through results.
+    /// </summary>
+    public async IAsyncEnumerable<Customer> ListAllAsync(
+        string? search = null,
+        bool? includeInactive = null,
+        int pageSize = 100,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        int page = 1;
+        while (true)
+        {
+            var result = await ListAsync(search, includeInactive, page, pageSize, ct);
+            foreach (var item in result.Items)
+                yield return item;
+            if (!result.HasMore) break;
+            page++;
+        }
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Drivers;
@@ -26,6 +27,25 @@ public sealed class DriverClient
 
         var response = await _http.GetListAsync<Driver>(path, "drivers", _tenantId, ct);
         return new PagedResult<Driver>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
+    }
+
+    /// <summary>
+    /// Iterate all drivers matching the filters, automatically paging through results.
+    /// </summary>
+    public async IAsyncEnumerable<Driver> ListAllAsync(
+        bool? activeOnly = null,
+        int pageSize = 100,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        int page = 1;
+        while (true)
+        {
+            var result = await ListAsync(activeOnly, page, pageSize, ct);
+            foreach (var item in result.Items)
+                yield return item;
+            if (!result.HasMore) break;
+            page++;
+        }
     }
 
     public async Task<Driver> GetAsync(string id, CancellationToken ct = default)

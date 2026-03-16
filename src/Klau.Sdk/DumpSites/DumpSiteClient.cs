@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Klau.Sdk.Common;
 
 namespace Klau.Sdk.DumpSites;
@@ -26,6 +27,24 @@ public sealed class DumpSiteClient
 
         var response = await _http.GetListAsync<DumpSite>(path, "dumpSites", _tenantId, ct);
         return new PagedResult<DumpSite>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
+    }
+
+    /// <summary>
+    /// Iterate all dump sites, automatically paging through results.
+    /// </summary>
+    public async IAsyncEnumerable<DumpSite> ListAllAsync(
+        int pageSize = 100,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        int page = 1;
+        while (true)
+        {
+            var result = await ListAsync(page, pageSize, ct);
+            foreach (var item in result.Items)
+                yield return item;
+            if (!result.HasMore) break;
+            page++;
+        }
     }
 
     public async Task<DumpSite> GetAsync(string id, CancellationToken ct = default)

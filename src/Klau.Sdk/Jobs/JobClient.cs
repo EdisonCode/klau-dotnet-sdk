@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Jobs;
@@ -33,6 +34,27 @@ public sealed class JobClient
 
         var response = await _http.GetListAsync<Job>(path, "jobs", _tenantId, ct);
         return new PagedResult<Job>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
+    }
+
+    /// <summary>
+    /// Iterate all jobs matching the filters, automatically paging through results.
+    /// </summary>
+    public async IAsyncEnumerable<Job> ListAllAsync(
+        string? date = null,
+        JobStatus? status = null,
+        string? driverId = null,
+        int pageSize = 100,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        int page = 1;
+        while (true)
+        {
+            var result = await ListAsync(date, status, driverId, page, pageSize, ct);
+            foreach (var item in result.Items)
+                yield return item;
+            if (!result.HasMore) break;
+            page++;
+        }
     }
 
     /// <summary>

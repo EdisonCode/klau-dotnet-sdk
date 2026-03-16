@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Trucks;
@@ -24,6 +25,24 @@ public sealed class TruckClient
 
         var response = await _http.GetListAsync<Truck>(path, "trucks", _tenantId, ct);
         return new PagedResult<Truck>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
+    }
+
+    /// <summary>
+    /// Iterate all trucks, automatically paging through results.
+    /// </summary>
+    public async IAsyncEnumerable<Truck> ListAllAsync(
+        int pageSize = 100,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        int page = 1;
+        while (true)
+        {
+            var result = await ListAsync(page, pageSize, ct);
+            foreach (var item in result.Items)
+                yield return item;
+            if (!result.HasMore) break;
+            page++;
+        }
     }
 
     public async Task<Truck> GetAsync(string id, CancellationToken ct = default)

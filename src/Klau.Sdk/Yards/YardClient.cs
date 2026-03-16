@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Yards;
@@ -24,6 +25,24 @@ public sealed class YardClient
 
         var response = await _http.GetListAsync<Yard>(path, "yards", _tenantId, ct);
         return new PagedResult<Yard>(response.Items, response.Total, response.Page, response.PageSize, response.HasMore);
+    }
+
+    /// <summary>
+    /// Iterate all yards, automatically paging through results.
+    /// </summary>
+    public async IAsyncEnumerable<Yard> ListAllAsync(
+        int pageSize = 100,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        int page = 1;
+        while (true)
+        {
+            var result = await ListAsync(page, pageSize, ct);
+            foreach (var item in result.Items)
+                yield return item;
+            if (!result.HasMore) break;
+            page++;
+        }
     }
 
     public async Task<Yard> GetAsync(string id, CancellationToken ct = default)
