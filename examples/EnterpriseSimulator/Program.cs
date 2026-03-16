@@ -133,16 +133,16 @@ if (existingYards.Items.Count > 0)
 }
 else
 {
-    // Create a yard at your main location. Adjust address/coords for your operation.
+    // Create a yard at your main location. Replace with your actual address and coordinates.
     yardId = await ((TenantScope)api).Yards.CreateAsync(new CreateYardRequest
     {
         Name = "Main Yard",
-        Address = "1000 Lincoln Way East",
-        City = "Chambersburg",
+        Address = "123 Industrial Blvd",
+        City = "Anytown",
         State = "PA",
-        Zip = "17201",
-        Latitude = 39.9376,
-        Longitude = -77.6611,
+        Zip = "10001",
+        Latitude = 40.0,
+        Longitude = -77.0,
         IsDefault = true,
         ServiceRadiusMiles = 60,
     });
@@ -171,8 +171,8 @@ foreach (var name in csvDumpSites)
         {
             Name = name,
             Address = name, // placeholder — update with real address in dashboard
-            City = "Chambersburg", State = "PA", Zip = "17201",
-            Latitude = 39.97, Longitude = -77.61,
+            City = "Anytown", State = "PA", Zip = "10001",
+            Latitude = 40.0, Longitude = -77.0,
             OpenTime = "06:00", CloseTime = "17:00",
             AcceptedSizes = [10, 15, 20, 30, 40],
             SiteType = "LANDFILL",
