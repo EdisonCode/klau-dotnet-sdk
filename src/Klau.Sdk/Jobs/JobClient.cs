@@ -9,7 +9,9 @@ public interface IJobClient
     IAsyncEnumerable<Job> ListAllAsync(string? date = null, JobStatus? status = null, string? driverId = null, int pageSize = 100, CancellationToken ct = default);
     Task<Job> GetAsync(string id, CancellationToken ct = default);
     Task<string> CreateAsync(CreateJobRequest request, CancellationToken ct = default);
+    Task<string> CreateAsync(CreateJobRequest request, KlauRequestOptions options, CancellationToken ct = default);
     Task<BatchCreateResult> CreateBatchAsync(IReadOnlyList<CreateJobRequest> jobs, CancellationToken ct = default);
+    Task<BatchCreateResult> CreateBatchAsync(IReadOnlyList<CreateJobRequest> jobs, KlauRequestOptions options, CancellationToken ct = default);
     Task<Job> UpdateAsync(string id, UpdateJobRequest request, CancellationToken ct = default);
     Task<AssignJobResult> AssignAsync(string id, AssignJobRequest request, CancellationToken ct = default);
     Task<UnassignJobResult> UnassignAsync(string id, CancellationToken ct = default);
@@ -90,6 +92,15 @@ public sealed class JobClient : IJobClient
         return await _http.PostCreateAsync("api/v1/jobs", request, "jobId", _tenantId, ct);
     }
 
+    /// <inheritdoc cref="CreateAsync(CreateJobRequest, CancellationToken)"/>
+    /// <param name="request">The job to create.</param>
+    /// <param name="options">Per-request options (idempotency key, timeout, tenant override).</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<string> CreateAsync(CreateJobRequest request, KlauRequestOptions options, CancellationToken ct = default)
+    {
+        return await _http.PostCreateAsync("api/v1/jobs", request, "jobId", _tenantId, options, ct);
+    }
+
     /// <summary>
     /// Create multiple jobs in a single API call.
     /// Returns a batch result with the created job IDs and any per-record errors.
@@ -100,6 +111,19 @@ public sealed class JobClient : IJobClient
     {
         return await _http.PostAsync<BatchCreateResult>(
             "api/v1/jobs/batch", new { jobs }, _tenantId, ct);
+    }
+
+    /// <inheritdoc cref="CreateBatchAsync(IReadOnlyList{CreateJobRequest}, CancellationToken)"/>
+    /// <param name="jobs">The jobs to create.</param>
+    /// <param name="options">Per-request options (idempotency key, timeout, tenant override).</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<BatchCreateResult> CreateBatchAsync(
+        IReadOnlyList<CreateJobRequest> jobs,
+        KlauRequestOptions options,
+        CancellationToken ct = default)
+    {
+        return await _http.PostAsync<BatchCreateResult>(
+            "api/v1/jobs/batch", new { jobs }, _tenantId, options, ct);
     }
 
     /// <summary>

@@ -171,6 +171,23 @@ public sealed class KlauHttpClient : IDisposable
         return await HandleResponse<T>(response, ct);
     }
 
+    internal async Task<T> PostAsync<T>(string path, object? body, string? tenantOverride, KlauRequestOptions? options, CancellationToken ct)
+    {
+        var effectiveCt = WithTimeout(options?.Timeout, ct, out var cts);
+        try
+        {
+            var response = await SendWithRetry(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, path);
+                if (body is not null) req.Content = JsonContent.Create(body, options: JsonOptions);
+                ApplyRequestOptions(req, tenantOverride, options);
+                return req;
+            }, effectiveCt);
+            return await HandleResponse<T>(response, effectiveCt);
+        }
+        finally { cts?.Dispose(); }
+    }
+
     /// <summary>
     /// Post to a create endpoint that returns { data: { [idFieldName]: "..." } }.
     /// Returns the created entity ID.
@@ -213,6 +230,36 @@ public sealed class KlauHttpClient : IDisposable
             return req;
         }, ct);
         await EnsureSuccess(response, ct);
+    }
+
+    internal async Task<string> PostCreateAsync(string path, object? body, string idFieldName, string? tenantOverride, KlauRequestOptions? options, CancellationToken ct)
+    {
+        var effectiveCt = WithTimeout(options?.Timeout, ct, out var cts);
+        try
+        {
+            var response = await SendWithRetry(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, path);
+                if (body is not null) req.Content = JsonContent.Create(body, options: JsonOptions);
+                ApplyRequestOptions(req, tenantOverride, options);
+                return req;
+            }, effectiveCt);
+
+            if (!response.IsSuccessStatusCode)
+                await ThrowApiException(response, effectiveCt);
+
+            var responseBody = await response.Content.ReadAsStringAsync(effectiveCt);
+            using var doc = JsonDocument.Parse(responseBody);
+
+            if (!doc.RootElement.TryGetProperty("data", out var dataElement))
+                throw new KlauApiException("DESERIALIZATION_ERROR", "Response missing 'data' property", (int)response.StatusCode);
+            if (!dataElement.TryGetProperty(idFieldName, out var idElement))
+                throw new KlauApiException("DESERIALIZATION_ERROR", $"Response data missing '{idFieldName}' property", (int)response.StatusCode);
+
+            return idElement.GetString()
+                ?? throw new KlauApiException("DESERIALIZATION_ERROR", $"'{idFieldName}' was null", (int)response.StatusCode);
+        }
+        finally { cts?.Dispose(); }
     }
 
     internal async Task<T> PatchAsync<T>(string path, object body, string? tenantOverride = null, CancellationToken ct = default)
@@ -276,6 +323,25 @@ public sealed class KlauHttpClient : IDisposable
             request.Headers.Remove(TenantHeader);
             request.Headers.Add(TenantHeader, tenantId);
         }
+    }
+
+    private void ApplyRequestOptions(HttpRequestMessage request, string? tenantOverride, KlauRequestOptions? options)
+    {
+        ApplyTenantHeader(request, options?.TenantId ?? tenantOverride);
+        if (options?.IdempotencyKey is { } key)
+            request.Headers.Add("Idempotency-Key", key);
+    }
+
+    private static CancellationToken WithTimeout(TimeSpan? timeout, CancellationToken ct, out CancellationTokenSource? cts)
+    {
+        if (timeout is not { } t)
+        {
+            cts = null;
+            return ct;
+        }
+        cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(t);
+        return cts.Token;
     }
 
     /// <summary>
