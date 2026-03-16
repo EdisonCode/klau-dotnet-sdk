@@ -2,12 +2,24 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Proposals;
 
+public interface IProposalClient
+{
+    Task<Proposal> CreateAsync(CreateProposalRequest request, CancellationToken ct = default);
+    Task<ProposalListResult> ListAsync(ProposalStatus? status = null, int limit = 50, int offset = 0, CancellationToken ct = default);
+    Task RemindAsync(string proposalId, RemindRequest? request = null, CancellationToken ct = default);
+    Task UpdateOfferAsync(string proposalId, UpdateOfferRequest request, CancellationToken ct = default);
+    Task ExpireAsync(string proposalId, CancellationToken ct = default);
+    Task<PricingCalendarResult> GetPricingCalendarAsync(string offeringId, int containerSize, string? materialId = null, double? lat = null, double? lng = null, int days = 14, CancellationToken ct = default);
+    Task<RecommendationsResult> GetRecommendationsAsync(string? type = null, CancellationToken ct = default);
+    Task DismissRecommendationAsync(string proposalId, string type, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Proposals are the primary way to send customers a quote via SMS/email.
 /// The customer receives a link to view pricing, pick a date, and book.
 /// All endpoints require authentication (admin).
 /// </summary>
-public sealed class ProposalClient
+public sealed class ProposalClient : IProposalClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

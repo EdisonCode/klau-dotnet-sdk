@@ -3,7 +3,17 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.DumpTickets;
 
-public sealed class DumpTicketClient
+public interface IDumpTicketClient
+{
+    Task<DumpTicket> CreateAsync(CreateDumpTicketRequest request, CancellationToken ct = default);
+    Task<PagedResult<DumpTicket>> ListAsync(string? jobId = null, bool? isVerified = null, bool? settlementApplied = null, string? startDate = null, string? endDate = null, int page = 1, int pageSize = 100, CancellationToken ct = default);
+    IAsyncEnumerable<DumpTicket> ListAllAsync(string? jobId = null, bool? isVerified = null, bool? settlementApplied = null, string? startDate = null, string? endDate = null, int pageSize = 100, CancellationToken ct = default);
+    Task<DumpTicket> GetAsync(string id, CancellationToken ct = default);
+    Task<DumpTicket> VerifyAsync(string id, VerifyDumpTicketRequest? request = null, CancellationToken ct = default);
+    Task<DumpTicket> GetForJobAsync(string jobId, CancellationToken ct = default);
+}
+
+public sealed class DumpTicketClient : IDumpTicketClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

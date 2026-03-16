@@ -3,7 +3,19 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Customers;
 
-public sealed class CustomerClient
+public interface ICustomerClient
+{
+    Task<PagedResult<Customer>> ListAsync(string? search = null, bool? includeInactive = null, int page = 1, int pageSize = 100, CancellationToken ct = default);
+    IAsyncEnumerable<Customer> ListAllAsync(string? search = null, bool? includeInactive = null, int pageSize = 100, CancellationToken ct = default);
+    Task<Customer> GetAsync(string id, CancellationToken ct = default);
+    Task<Customer360> Get360Async(string id, CancellationToken ct = default);
+    Task<string> CreateAsync(CreateCustomerRequest request, CancellationToken ct = default);
+    Task<Customer> UpdateAsync(string id, UpdateCustomerRequest request, CancellationToken ct = default);
+    Task DeleteAsync(string id, CancellationToken ct = default);
+    Task<List<Site>> ListSitesAsync(string customerId, CancellationToken ct = default);
+}
+
+public sealed class CustomerClient : ICustomerClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

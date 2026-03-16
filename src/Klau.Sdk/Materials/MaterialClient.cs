@@ -2,7 +2,18 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Materials;
 
-public sealed class MaterialClient
+public interface IMaterialClient
+{
+    Task<PagedResult<Material>> ListAsync(bool? activeOnly = null, bool? storefrontOnly = null, CancellationToken ct = default);
+    Task<Material> GetAsync(string id, CancellationToken ct = default);
+    Task<string> CreateAsync(CreateMaterialRequest request, CancellationToken ct = default);
+    Task UpdateAsync(string id, UpdateMaterialRequest request, CancellationToken ct = default);
+    Task DeleteAsync(string id, CancellationToken ct = default);
+    Task<List<MaterialTemplate>> ListTemplatesAsync(CancellationToken ct = default);
+    Task<SeedFromTemplateResult> SeedFromTemplateAsync(List<string> templateCodes, CancellationToken ct = default);
+}
+
+public sealed class MaterialClient : IMaterialClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

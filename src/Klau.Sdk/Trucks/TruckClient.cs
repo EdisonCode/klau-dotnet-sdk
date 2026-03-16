@@ -3,7 +3,17 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Trucks;
 
-public sealed class TruckClient
+public interface ITruckClient
+{
+    Task<PagedResult<Truck>> ListAsync(int page = 1, int pageSize = 100, CancellationToken ct = default);
+    IAsyncEnumerable<Truck> ListAllAsync(int pageSize = 100, CancellationToken ct = default);
+    Task<Truck> GetAsync(string id, CancellationToken ct = default);
+    Task<string> CreateAsync(CreateTruckRequest request, CancellationToken ct = default);
+    Task UpdateAsync(string id, UpdateTruckRequest request, CancellationToken ct = default);
+    Task DeleteAsync(string id, CancellationToken ct = default);
+}
+
+public sealed class TruckClient : ITruckClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

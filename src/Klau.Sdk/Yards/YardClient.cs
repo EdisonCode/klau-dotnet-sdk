@@ -3,7 +3,17 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Yards;
 
-public sealed class YardClient
+public interface IYardClient
+{
+    Task<PagedResult<Yard>> ListAsync(int page = 1, int pageSize = 100, CancellationToken ct = default);
+    IAsyncEnumerable<Yard> ListAllAsync(int pageSize = 100, CancellationToken ct = default);
+    Task<Yard> GetAsync(string id, CancellationToken ct = default);
+    Task<string> CreateAsync(CreateYardRequest request, CancellationToken ct = default);
+    Task UpdateAsync(string id, UpdateYardRequest request, CancellationToken ct = default);
+    Task DeleteAsync(string id, CancellationToken ct = default);
+}
+
+public sealed class YardClient : IYardClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

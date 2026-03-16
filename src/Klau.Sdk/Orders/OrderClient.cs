@@ -2,7 +2,16 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Orders;
 
-public sealed class OrderClient
+public interface IOrderClient
+{
+    Task<OrderTracking> GetStatusAsync(string orderId, CancellationToken ct = default);
+    Task RequestPickupAsync(string orderId, CancellationToken ct = default);
+    Task<List<CustomerOrder>> ListMineAsync(CancellationToken ct = default);
+    Task<List<PendingSettlement>> ListPendingSettlementsAsync(CancellationToken ct = default);
+    Task<SettlementResult> SettleAsync(string orderId, SettleRequest? request = null, CancellationToken ct = default);
+}
+
+public sealed class OrderClient : IOrderClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

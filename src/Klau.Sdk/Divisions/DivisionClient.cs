@@ -2,7 +2,19 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Divisions;
 
-public sealed class DivisionClient
+public interface IDivisionClient
+{
+    Task<List<Division>> ListAsync(CancellationToken ct = default);
+    Task<DivisionDetail> GetAsync(string id, CancellationToken ct = default);
+    Task<Division> CreateAsync(CreateDivisionRequest request, CancellationToken ct = default);
+    Task<Division> UpdateAsync(string id, UpdateDivisionRequest request, CancellationToken ct = default);
+    Task<UsageSummary> GetUsageSummaryAsync(CancellationToken ct = default);
+    Task<DivisionUsage> GetUsageAsync(string id, CancellationToken ct = default);
+    Task<Invitation> InviteUserAsync(string id, InviteUserRequest request, CancellationToken ct = default);
+    Task<List<Division>> ListCorporateAsync(CancellationToken ct = default);
+}
+
+public sealed class DivisionClient : IDivisionClient
 {
     private readonly KlauHttpClient _http;
 

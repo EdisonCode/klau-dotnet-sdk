@@ -3,6 +3,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Klau.Sdk.Readiness;
 
+public interface IReadinessClient
+{
+    Task<ReadinessReport> CheckAsync(CancellationToken ct = default);
+    Task<ReadinessReport> CheckAndLogAsync(ILogger logger, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Check whether a tenant is properly configured for dispatch optimization.
 ///
@@ -10,7 +16,7 @@ namespace Klau.Sdk.Readiness;
 /// missing configuration (drivers, trucks, yards, dump sites, materials) before
 /// it causes silent failures or suboptimal results.
 /// </summary>
-public sealed class ReadinessClient
+public sealed class ReadinessClient : IReadinessClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

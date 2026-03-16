@@ -2,11 +2,17 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Companies;
 
+public interface ICompanyClient
+{
+    Task<Company> GetAsync(CancellationToken ct = default);
+    Task<Company> UpdateAsync(UpdateCompanyRequest request, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Client for the Klau company API. Provides access to the authenticated
 /// company's profile and operational settings.
 /// </summary>
-public sealed class CompanyClient
+public sealed class CompanyClient : ICompanyClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

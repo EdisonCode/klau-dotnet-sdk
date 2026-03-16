@@ -52,6 +52,8 @@ public static class ServiceCollectionExtensions
             return KlauClient.Create(opts, logger: logger);
         });
 
+        services.AddSingleton<IKlauClient>(sp => sp.GetRequiredService<KlauClient>());
+
         // Register webhook validator only if a secret is configured
         var secret = options.ResolveWebhookSecret();
         if (secret is not null)

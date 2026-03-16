@@ -3,7 +3,23 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Jobs;
 
-public sealed class JobClient
+public interface IJobClient
+{
+    Task<PagedResult<Job>> ListAsync(string? date = null, JobStatus? status = null, string? driverId = null, int page = 1, int pageSize = 100, CancellationToken ct = default);
+    IAsyncEnumerable<Job> ListAllAsync(string? date = null, JobStatus? status = null, string? driverId = null, int pageSize = 100, CancellationToken ct = default);
+    Task<Job> GetAsync(string id, CancellationToken ct = default);
+    Task<string> CreateAsync(CreateJobRequest request, CancellationToken ct = default);
+    Task<BatchCreateResult> CreateBatchAsync(IReadOnlyList<CreateJobRequest> jobs, CancellationToken ct = default);
+    Task<Job> UpdateAsync(string id, UpdateJobRequest request, CancellationToken ct = default);
+    Task<AssignJobResult> AssignAsync(string id, AssignJobRequest request, CancellationToken ct = default);
+    Task<UnassignJobResult> UnassignAsync(string id, CancellationToken ct = default);
+    Task CancelAsync(string id, CancellationToken ct = default);
+    Task StartAsync(string id, CancellationToken ct = default);
+    Task CompleteAsync(string id, CancellationToken ct = default);
+    Task DeleteAsync(string id, CancellationToken ct = default);
+}
+
+public sealed class JobClient : IJobClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

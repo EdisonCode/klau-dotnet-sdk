@@ -2,7 +2,20 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Storefronts;
 
-public sealed class StorefrontClient
+public interface IStorefrontClient
+{
+    Task<StorefrontConfig> GetConfigAsync(string slug, CancellationToken ct = default);
+    Task<OrderConfirmation> SubmitOrderAsync(string slug, SubmitOrderRequest request, CancellationToken ct = default);
+    Task<AvailabilityResult> CheckAvailabilityAsync(string slug, CheckAvailabilityRequest request, CancellationToken ct = default);
+    Task<Storefront> GetOwnAsync(CancellationToken ct = default);
+    Task<Storefront> SetupAsync(SetupStorefrontRequest request, CancellationToken ct = default);
+    Task<Storefront> UpdateAsync(UpdateStorefrontRequest request, CancellationToken ct = default);
+    Task ActivateAsync(CancellationToken ct = default);
+    Task PauseAsync(CancellationToken ct = default);
+    Task<PagedResult<StorefrontOrder>> ListOrdersAsync(int page = 1, int pageSize = 100, CancellationToken ct = default);
+}
+
+public sealed class StorefrontClient : IStorefrontClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

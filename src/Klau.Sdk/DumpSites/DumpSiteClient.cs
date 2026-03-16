@@ -3,7 +3,21 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.DumpSites;
 
-public sealed class DumpSiteClient
+public interface IDumpSiteClient
+{
+    Task<PagedResult<DumpSite>> ListAsync(int page = 1, int pageSize = 100, CancellationToken ct = default);
+    IAsyncEnumerable<DumpSite> ListAllAsync(int pageSize = 100, CancellationToken ct = default);
+    Task<DumpSite> GetAsync(string id, CancellationToken ct = default);
+    Task<string> CreateAsync(CreateDumpSiteRequest request, CancellationToken ct = default);
+    Task UpdateAsync(string id, UpdateDumpSiteRequest request, CancellationToken ct = default);
+    Task DeleteAsync(string id, CancellationToken ct = default);
+    Task<IReadOnlyList<MaterialPricing>> ListMaterialPricingAsync(string dumpSiteId, CancellationToken ct = default);
+    Task<MaterialPricing> AddMaterialPricingAsync(string dumpSiteId, AddMaterialPricingRequest request, CancellationToken ct = default);
+    Task<MaterialPricing> UpdateMaterialPricingAsync(string dumpSiteId, string materialId, UpdateMaterialPricingRequest request, CancellationToken ct = default);
+    Task RemoveMaterialPricingAsync(string dumpSiteId, string materialId, CancellationToken ct = default);
+}
+
+public sealed class DumpSiteClient : IDumpSiteClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

@@ -21,6 +21,28 @@ using Microsoft.Extensions.Logging;
 
 namespace Klau.Sdk;
 
+public interface IKlauClient
+{
+    IAuthClient Auth { get; }
+    ICompanyClient Company { get; }
+    IJobClient Jobs { get; }
+    IImportClient Import { get; }
+    ICustomerClient Customers { get; }
+    IDispatchClient Dispatches { get; }
+    IStorefrontClient Storefronts { get; }
+    IMaterialClient Materials { get; }
+    IDumpTicketClient DumpTickets { get; }
+    IOrderClient Orders { get; }
+    IProposalClient Proposals { get; }
+    IDivisionClient Divisions { get; }
+    IWebhookClient Webhooks { get; }
+    IReadinessClient Readiness { get; }
+    IDriverClient Drivers { get; }
+    ITruckClient Trucks { get; }
+    IYardClient Yards { get; }
+    IDumpSiteClient DumpSites { get; }
+}
+
 /// <summary>
 /// Entry point for the Klau .NET SDK.
 ///
@@ -35,31 +57,31 @@ namespace Klau.Sdk;
 ///   var div = klau.ForTenant("child-company-id");
 ///   var board = await div.Dispatches.GetBoardAsync("2026-03-13");
 /// </summary>
-public sealed class KlauClient : IDisposable
+public sealed class KlauClient : IKlauClient, IDisposable
 {
     internal readonly KlauHttpClient Http;
 
     /// <summary>Expected prefix for Klau API keys.</summary>
     internal const string ApiKeyPrefix = "kl_live_";
 
-    public AuthClient Auth { get; }
-    public CompanyClient Company { get; }
-    public JobClient Jobs { get; }
-    public ImportClient Import { get; }
-    public CustomerClient Customers { get; }
-    public DispatchClient Dispatches { get; }
-    public StorefrontClient Storefronts { get; }
-    public MaterialClient Materials { get; }
-    public DumpTicketClient DumpTickets { get; }
-    public OrderClient Orders { get; }
-    public ProposalClient Proposals { get; }
-    public DivisionClient Divisions { get; }
-    public WebhookClient Webhooks { get; }
-    public ReadinessClient Readiness { get; }
-    public DriverClient Drivers { get; }
-    public TruckClient Trucks { get; }
-    public YardClient Yards { get; }
-    public DumpSiteClient DumpSites { get; }
+    public IAuthClient Auth { get; }
+    public ICompanyClient Company { get; }
+    public IJobClient Jobs { get; }
+    public IImportClient Import { get; }
+    public ICustomerClient Customers { get; }
+    public IDispatchClient Dispatches { get; }
+    public IStorefrontClient Storefronts { get; }
+    public IMaterialClient Materials { get; }
+    public IDumpTicketClient DumpTickets { get; }
+    public IOrderClient Orders { get; }
+    public IProposalClient Proposals { get; }
+    public IDivisionClient Divisions { get; }
+    public IWebhookClient Webhooks { get; }
+    public IReadinessClient Readiness { get; }
+    public IDriverClient Drivers { get; }
+    public ITruckClient Trucks { get; }
+    public IYardClient Yards { get; }
+    public IDumpSiteClient DumpSites { get; }
 
     /// <summary>
     /// Create a new Klau API client authenticated with an API key.
@@ -186,30 +208,38 @@ public sealed class KlauClient : IDisposable
 /// Each sub-client returned by this scope passes the tenant ID as a per-request header,
 /// so you can hold multiple TenantScope instances pointing at different divisions simultaneously.
 /// </summary>
-public sealed class TenantScope
+public sealed class TenantScope : IKlauClient
 {
     private readonly string _tenantId;
 
-    public CompanyClient Company { get; }
-    public JobClient Jobs { get; }
-    public ImportClient Import { get; }
-    public CustomerClient Customers { get; }
-    public DispatchClient Dispatches { get; }
-    public StorefrontClient Storefronts { get; }
-    public MaterialClient Materials { get; }
-    public DumpTicketClient DumpTickets { get; }
-    public OrderClient Orders { get; }
-    public ProposalClient Proposals { get; }
-    public ReadinessClient Readiness { get; }
-    public DriverClient Drivers { get; }
-    public TruckClient Trucks { get; }
-    public YardClient Yards { get; }
-    public DumpSiteClient DumpSites { get; }
+    public IAuthClient Auth { get; }
+    public ICompanyClient Company { get; }
+    public IJobClient Jobs { get; }
+    public IImportClient Import { get; }
+    public ICustomerClient Customers { get; }
+    public IDispatchClient Dispatches { get; }
+    public IStorefrontClient Storefronts { get; }
+    public IMaterialClient Materials { get; }
+    public IDumpTicketClient DumpTickets { get; }
+    public IOrderClient Orders { get; }
+    public IProposalClient Proposals { get; }
+    public IDivisionClient Divisions { get; }
+    public IWebhookClient Webhooks { get; }
+    public IReadinessClient Readiness { get; }
+    public IDriverClient Drivers { get; }
+    public ITruckClient Trucks { get; }
+    public IYardClient Yards { get; }
+    public IDumpSiteClient DumpSites { get; }
 
     internal TenantScope(KlauClient client, string tenantId)
     {
         _tenantId = tenantId;
         var http = client.Http;
+
+        // Auth, Webhooks, and Divisions are not tenant-scoped — share from parent
+        Auth = client.Auth;
+        Divisions = client.Divisions;
+        Webhooks = client.Webhooks;
 
         Company = new CompanyClient(http, tenantId);
         Jobs = new JobClient(http, tenantId);

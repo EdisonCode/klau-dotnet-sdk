@@ -2,7 +2,18 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Dispatches;
 
-public sealed class DispatchClient
+public interface IDispatchClient
+{
+    Task<DispatchBoard> GetBoardAsync(string date, CancellationToken ct = default);
+    Task<OptimizationJob> StartOptimizationAsync(OptimizeRequest request, CancellationToken ct = default);
+    Task<OptimizationJob> GetOptimizationStatusAsync(string jobId, CancellationToken ct = default);
+    Task<OptimizationJob> OptimizeAndWaitAsync(OptimizeRequest request, TimeSpan? pollInterval = null, CancellationToken ct = default);
+    Task PublishAsync(string date, CancellationToken ct = default);
+    Task ReorderAsync(string dispatchId, ReorderRequest request, CancellationToken ct = default);
+    Task<WhatIfResult> WhatIfAsync(WhatIfRequest request, CancellationToken ct = default);
+}
+
+public sealed class DispatchClient : IDispatchClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

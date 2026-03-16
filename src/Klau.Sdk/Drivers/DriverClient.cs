@@ -3,7 +3,17 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Drivers;
 
-public sealed class DriverClient
+public interface IDriverClient
+{
+    Task<PagedResult<Driver>> ListAsync(bool? activeOnly = null, int page = 1, int pageSize = 100, CancellationToken ct = default);
+    IAsyncEnumerable<Driver> ListAllAsync(bool? activeOnly = null, int pageSize = 100, CancellationToken ct = default);
+    Task<Driver> GetAsync(string id, CancellationToken ct = default);
+    Task<string> CreateAsync(CreateDriverRequest request, CancellationToken ct = default);
+    Task<Driver> UpdateAsync(string id, UpdateDriverRequest request, CancellationToken ct = default);
+    Task DeleteAsync(string id, CancellationToken ct = default);
+}
+
+public sealed class DriverClient : IDriverClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

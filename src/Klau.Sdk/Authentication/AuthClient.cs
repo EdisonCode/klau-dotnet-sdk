@@ -3,7 +3,19 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Authentication;
 
-public sealed class AuthClient
+public interface IAuthClient
+{
+    Task<LoginResult> LoginAsync(string email, string password, CancellationToken ct = default);
+    Task<string> DemoLoginAsync(CancellationToken ct = default);
+    Task<LoginResult> RegisterAsync(RegisterRequest request, CancellationToken ct = default);
+    Task ForgotPasswordAsync(string email, CancellationToken ct = default);
+    Task ResetPasswordAsync(string token, string password, CancellationToken ct = default);
+    Task ChangePasswordAsync(string currentPassword, string newPassword, CancellationToken ct = default);
+    void SetToken(string token);
+    void ClearToken();
+}
+
+public sealed class AuthClient : IAuthClient
 {
     private readonly KlauHttpClient _http;
 

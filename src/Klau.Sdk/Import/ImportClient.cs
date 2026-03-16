@@ -2,11 +2,18 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Import;
 
+public interface IImportClient
+{
+    Task<ImportJobsResult> JobsAsync(ImportJobsRequest request, CancellationToken ct = default);
+    Task<BatchReadiness> GetReadinessAsync(string batchId, CancellationToken ct = default);
+    Task<ImportJobsResult> ImportAndWaitAsync(ImportJobsRequest request, TimeSpan? timeout = null, TimeSpan? pollInterval = null, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Client for the Klau import API. Provides bulk import using customer/site names
 /// instead of pre-created IDs — the golden path for enterprise integrations.
 /// </summary>
-public sealed class ImportClient
+public sealed class ImportClient : IImportClient
 {
     private readonly KlauHttpClient _http;
     private readonly string? _tenantId;

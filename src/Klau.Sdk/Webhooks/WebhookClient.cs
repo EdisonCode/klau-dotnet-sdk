@@ -2,12 +2,21 @@ using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Webhooks;
 
+public interface IWebhookClient
+{
+    Task<DeveloperSettings> GetSettingsAsync(CancellationToken ct = default);
+    Task<CreateWebhookResult> CreateAsync(CreateWebhookRequest request, CancellationToken ct = default);
+    Task SetEnabledAsync(string webhookId, bool enabled, CancellationToken ct = default);
+    Task DeleteAsync(string webhookId, CancellationToken ct = default);
+    Task<WebhookTestResult> TestAsync(string webhookId, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Manage webhook endpoints via the Klau Developer Settings API.
 /// Register endpoints to receive real-time events for job lifecycle,
 /// dispatch optimization, and more.
 /// </summary>
-public sealed class WebhookClient
+public sealed class WebhookClient : IWebhookClient
 {
     private readonly KlauHttpClient _http;
 
