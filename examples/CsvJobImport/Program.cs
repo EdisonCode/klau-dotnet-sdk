@@ -1,19 +1,20 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// CsvJobImport — End-to-end example of the Klau SDK integration hot path
+// CsvJobImport — Minimal example of the Klau SDK import-and-optimize flow
 //
-// This example shows how an enterprise .NET team would:
-//   1. Parse a CSV export from their existing dispatch system
-//   2. Batch-load those work orders into Klau as jobs
+// This example shows the simplest integration path:
+//   1. Parse a CSV export from your existing system
+//   2. Import into Klau (auto-creates customers + sites by name)
 //   3. Run dispatch optimization
-//   4. Read back driver assignments and optimized job sequences
+//   4. Read back driver assignments
 //
-// The CSV format matches a typical roll-off waste hauler's daily order export.
+// For a full enterprise integration with master-data setup, container size
+// detection, and dispatch plan export, see the EnterpriseSimulator example.
 // ──────────────────────────────────────────────────────────────────────────────
 
 using Klau.Sdk;
 using Klau.Sdk.Common;
-using Klau.Sdk.Jobs;
 using Klau.Sdk.Dispatches;
+using Klau.Sdk.Import;
 using Microsoft.Extensions.Logging;
 
 // ── Configuration ───────────────────────────────────────────────────────────
@@ -21,131 +22,90 @@ using Microsoft.Extensions.Logging;
 var csvPath = args.Length > 0 ? args[0] : "sample-orders.csv";
 var date = args.Length > 1 ? args[1] : DateTime.Today.ToString("yyyy-MM-dd");
 
-// ── Step 0: Check dispatch readiness ────────────────────────────────────────
-// Catches missing configuration (no drivers, no trucks, no yards, etc.)
-// BEFORE you spend time creating jobs and waiting for optimization.
-
-Console.WriteLine("Checking dispatch readiness...\n");
+// ── Step 0: Initialize and check readiness ─────────────────────────────────
 
 using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
 var logger = loggerFactory.CreateLogger("CsvJobImport");
 
-// Reads KLAU_API_KEY from environment. Validates the key format at startup
-// so you get a clear error immediately, not on the first API call.
 using var klau = KlauClient.CreateFromEnvironment(logger: logger);
 
+Console.WriteLine("Checking dispatch readiness...\n");
 var readiness = await klau.Readiness.CheckAndLogAsync(logger);
 if (!readiness.CanGoLive)
 {
     Console.Error.WriteLine(
         "\nDispatch readiness check failed. Fix the issues above before importing jobs.\n" +
-        "See the Klau SDK README for how to push drivers, trucks, yards, and dump sites.");
+        "See the EnterpriseSimulator example for how to push drivers, trucks, yards, and dump sites.");
     return;
 }
 
 // ── Step 1: Parse the CSV ───────────────────────────────────────────────────
 
 Console.WriteLine($"Loading orders from {csvPath}...");
-
 var orders = ParseCsv(csvPath);
-Console.WriteLine($"Parsed {orders.Count} orders");
+Console.WriteLine($"Parsed {orders.Count} orders\n");
 
-// Show what we found
 foreach (var order in orders)
-{
     Console.WriteLine($"  {order.OrderNumber,-8} {order.ServiceType,-22} " +
         $"{order.CustomerName,-30} {order.ContainerSize,2}yd  {order.City}, {order.State}");
-}
 
-// ── Step 2: Map to Klau jobs and batch-create ───────────────────────────────
+// ── Step 2: Import jobs ─────────────────────────────────────────────────────
+// ImportAndWaitAsync resolves customers and sites by name, auto-creates
+// missing records, and waits for drive-time cache warm-up so the optimizer
+// has real truck routing times from HERE Maps.
 
-Console.WriteLine($"\nCreating {orders.Count} jobs in Klau for {date}...");
+Console.WriteLine($"\nImporting {orders.Count} jobs for {date}...");
 
-
-var jobRequests = orders
-    .Select(o => new CreateJobRequest
-    {
-        // Use a placeholder customer ID — in production you'd look these up
-        // or use Klau's createMissing option to auto-create customer stubs
-        CustomerId = "default",
-        // In production you'd look up the Klau site ID from your system's address mapping.
-        // The API requires a siteId — use Klau's site lookup or create sites beforehand.
-        SiteId = "default",
-        Type = MapServiceType(o.ServiceType),
-        ContainerSize = o.ContainerSize > 0 ? o.ContainerSize : null,
-        RequestedDate = date,
-        TimeWindow = TimeWindow.ANYTIME,
-        Notes = BuildNotes(o),
-        ExternalId = o.OrderNumber,  // ← your system's ID, the key to two-way sync
-    })
-    .ToList();
-
-BatchCreateResult result;
-try
+var importRecords = orders.Select(o => new ImportJobRecord
 {
-    result = await klau.Jobs.CreateBatchAsync(jobRequests);
-}
-catch (KlauApiException ex)
+    CustomerName  = o.CustomerName,
+    SiteName      = !string.IsNullOrEmpty(o.Street) ? $"{o.StreetNumber} {o.Street}" : o.CustomerName,
+    SiteAddress   = $"{o.StreetNumber} {o.Street}",
+    SiteCity      = o.City,
+    SiteState     = o.State,
+    SiteZip       = o.Zip,
+    JobType       = MapServiceType(o.ServiceType),
+    ContainerSize = o.ContainerSize > 0 ? o.ContainerSize.ToString() : "30",
+    TimeWindow    = "ANYTIME",
+    RequestedDate = date,
+    ExternalId    = o.OrderNumber,
+    Notes         = !string.IsNullOrEmpty(o.Destination) ? $"Dest: {o.Destination}" : null,
+}).ToList();
+
+var import = await klau.Import.ImportAndWaitAsync(
+    new ImportJobsRequest { Jobs = importRecords, CreateMissing = true },
+    timeout: TimeSpan.FromSeconds(90),
+    pollInterval: TimeSpan.FromSeconds(2));
+
+Console.WriteLine($"  Imported: {import.Imported}  |  Skipped: {import.Skipped}");
+if (import.CustomersCreated > 0 || import.SitesCreated > 0)
+    Console.WriteLine($"  Auto-created: {import.CustomersCreated} customers, {import.SitesCreated} sites");
+
+foreach (var err in import.Errors)
+    Console.WriteLine($"  Error row {err.Row}: {err.Field} - {err.Message}");
+
+if (import.Imported == 0)
 {
-    Console.Error.WriteLine($"Failed to create jobs: {ex.ErrorCode} - {ex.Message} (HTTP {ex.StatusCode})");
+    Console.Error.WriteLine("No jobs imported — nothing to optimize.");
     return;
 }
-
-Console.WriteLine($"  Created: {result.Created.Count}");
-if (result.Errors.Count > 0)
-{
-    Console.WriteLine($"  Errors:  {result.Errors.Count}");
-    foreach (var err in result.Errors)
-        Console.WriteLine($"    Order {orders[err.Index].OrderNumber}: {err.Code} - {err.Message}");
-}
-
-if (result.Created.Count == 0)
-{
-    Console.Error.WriteLine("No jobs were created — nothing to optimize.");
-    return;
-}
-
-// Build a lookup from Klau job ID → original order number
-var jobToOrder = result.Created.ToDictionary(c => c.JobId, c => c.ExternalId ?? "?");
 
 // ── Step 3: Optimize dispatch ───────────────────────────────────────────────
 
 Console.WriteLine($"\nOptimizing dispatch for {date}...");
 
-OptimizationJob optimization;
-try
+var optimization = await klau.Dispatches.OptimizeAndWaitAsync(
+    new OptimizeRequest { Date = date, OptimizationMode = OptimizationMode.FULL_DAY },
+    pollInterval: TimeSpan.FromSeconds(3));
+
+if (optimization.Status == OptimizationJobStatus.COMPLETED && optimization.Result is { } r)
 {
-    optimization = await klau.Dispatches.OptimizeAndWaitAsync(
-        new OptimizeRequest
-        {
-            Date = date,
-            OptimizationMode = OptimizationMode.FULL_DAY,
-        },
-        pollInterval: TimeSpan.FromSeconds(3));
+    Console.WriteLine($"  Grade: {r.PlanGrade} ({r.PlanQuality}/100)  |  Flow: {r.FlowScore}/100");
+    Console.WriteLine($"  Assigned: {r.AssignedJobs}/{r.TotalJobs}  |  Drive times: {r.DriveTimeSource}");
 }
-catch (KlauApiException ex)
+else
 {
-    Console.Error.WriteLine($"Optimization failed: {ex.ErrorCode} - {ex.Message} (HTTP {ex.StatusCode})");
-    Console.WriteLine("Jobs were created successfully — you can run optimization from the Klau dashboard.");
-    return;
-}
-
-switch (optimization.Status)
-{
-    case OptimizationJobStatus.COMPLETED:
-        var r = optimization.Result!;
-        Console.WriteLine($"  Plan grade: {r.PlanGrade} ({r.PlanQuality}/100)");
-        Console.WriteLine($"  Flow score: {r.FlowScore}/100");
-        Console.WriteLine($"  Assigned:   {r.AssignedJobs}/{r.TotalJobs} jobs");
-        break;
-
-    case OptimizationJobStatus.FAILED:
-        Console.WriteLine($"  Optimization failed: {optimization.Reason}");
-        return;
-
-    case OptimizationJobStatus.SKIPPED:
-        Console.WriteLine($"  Optimization skipped: {optimization.Reason}");
-        break;
+    Console.WriteLine($"  Optimization {optimization.Status}: {optimization.Reason}");
 }
 
 // ── Step 4: Read back driver assignments ────────────────────────────────────
@@ -155,18 +115,12 @@ Console.WriteLine(new string('─', 90));
 
 var board = await klau.Dispatches.GetBoardAsync(date);
 
-foreach (var driver in board.Drivers)
+foreach (var driver in board.Drivers.Where(d => d.Jobs.Count > 0))
 {
-    Console.WriteLine($"\n  Driver: {driver.Name} ({driver.Id})");
-    Console.WriteLine($"  Status: {driver.Status}");
-    Console.WriteLine($"  {"Seq",-4} {"Type",-14} {"Customer",-28} {"Size",-6} {"Order #"}");
-    Console.WriteLine($"  {"───",-4} {"──────────────",-14} {"────────────────────────────",-28} {"──────",-6} {"───────"}");
-
+    Console.WriteLine($"\n  {driver.Name} ({driver.Jobs.Count} jobs, truck {driver.TruckNumber ?? "—"})");
     foreach (var job in driver.Jobs.OrderBy(j => j.Sequence))
-    {
-        Console.WriteLine($"  {job.Sequence,-4} {job.Type,-14} {Truncate(job.CustomerName, 28),-28} " +
-            $"{(job.ContainerSize.HasValue ? $"{job.ContainerSize}yd" : "—"),-6} {job.ExternalId}");
-    }
+        Console.WriteLine($"    #{job.Sequence,-3} {job.Type,-14} {Truncate(job.CustomerName, 25),-25} " +
+            $"{job.ExternalId,-10} {(job.ContainerSize.HasValue ? $"{job.ContainerSize}yd" : "—")}");
 }
 
 if (board.UnassignedJobs.Count > 0)
@@ -181,100 +135,65 @@ Console.WriteLine("Done. Review assignments in Klau, then publish when ready:");
 Console.WriteLine($"  await klau.Dispatches.PublishAsync(\"{date}\");");
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CSV parsing and mapping helpers
+// Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
 static List<CsvOrder> ParseCsv(string path)
 {
     var orders = new List<CsvOrder>();
-
-    foreach (var line in File.ReadLines(path).Skip(1)) // skip header
+    foreach (var line in File.ReadLines(path).Skip(1))
     {
         var fields = ParseCsvLine(line);
         if (fields.Count < 14) continue;
-
         orders.Add(new CsvOrder
         {
-            OrderNumber = fields[0].Trim(),
+            OrderNumber  = fields[0].Trim(),
             AccountNumber = fields[1].Trim(),
             CustomerName = fields[2].Trim(),
-            Street = fields[3].Trim(),
+            Street       = fields[3].Trim(),
             StreetNumber = fields[4].Trim(),
-            City = fields[5].Trim(),
-            State = fields[6].Trim(),
-            Zip = fields[7].Trim(),
-            Container = fields[8].Trim(),
-            ServiceType = fields[9].Trim(),
-            Destination = fields[10].Trim(),
-            Longitude = double.TryParse(fields[11], out var lng) ? lng : null,
-            Latitude = double.TryParse(fields[12], out var lat) ? lat : null,
-            FullAddress = fields[13].Trim(),
+            City         = fields[5].Trim(),
+            State        = fields[6].Trim(),
+            Zip          = fields[7].Trim(),
+            Container    = fields[8].Trim(),
+            ServiceType  = fields[9].Trim(),
+            Destination  = fields[10].Trim(),
+            Longitude    = double.TryParse(fields[11], out var lng) ? lng : null,
+            Latitude     = double.TryParse(fields[12], out var lat) ? lat : null,
+            FullAddress  = fields[13].Trim(),
         });
     }
-
     return orders;
 }
 
-/// <summary>
-/// Parse a CSV line respecting quoted fields that may contain commas.
-/// </summary>
 static List<string> ParseCsvLine(string line)
 {
     var fields = new List<string>();
     var current = new System.Text.StringBuilder();
     var inQuotes = false;
-
     for (int i = 0; i < line.Length; i++)
     {
         var c = line[i];
-        if (c == '"')
-        {
-            inQuotes = !inQuotes;
-        }
-        else if (c == ',' && !inQuotes)
-        {
-            fields.Add(current.ToString());
-            current.Clear();
-        }
-        else
-        {
-            current.Append(c);
-        }
+        if (c == '"') inQuotes = !inQuotes;
+        else if (c == ',' && !inQuotes) { fields.Add(current.ToString()); current.Clear(); }
+        else current.Append(c);
     }
     fields.Add(current.ToString());
     return fields;
 }
 
-/// <summary>
-/// Map hauler service codes to Klau job types.
-/// Adapt this mapping to match your system's codes.
-/// </summary>
-static JobType MapServiceType(string service) => service.ToUpperInvariant() switch
+static string MapServiceType(string service) => service.ToUpperInvariant() switch
 {
-    var s when s.Contains("DUMP & RETURN") => JobType.DUMP_RETURN,
-    var s when s.Contains("DELIVERY") => JobType.DELIVERY,
-    var s when s.Contains("DISCONTINUE") => JobType.PICKUP,        // pickup = end of service
-    var s when s.Contains("SWAP") => JobType.SWAP,
-    var s when s.Contains("MISSED") => JobType.SERVICE_VISIT,
-    var s when s.Contains("NEW SERVICE") => JobType.DELIVERY,      // new service = first delivery
-    var s when s.Contains("DRIVER NOTE") => JobType.SERVICE_VISIT,
-    _ => JobType.SERVICE_VISIT,
+    var s when s.Contains("DUMP & RETURN") => "DUMP_RETURN",
+    var s when s.Contains("DELIVERY")      => "DELIVERY",
+    var s when s.Contains("DISCONTINUE")   => "PICKUP",
+    var s when s.Contains("SWAP")          => "SWAP",
+    var s when s.Contains("NEW SERVICE")   => "DELIVERY",
+    _                                      => "DELIVERY",
 };
-
-static string BuildNotes(CsvOrder order)
-{
-    var parts = new List<string>();
-    if (!string.IsNullOrEmpty(order.Destination))
-        parts.Add($"Destination: {order.Destination}");
-    if (!string.IsNullOrEmpty(order.FullAddress))
-        parts.Add($"Address: {order.FullAddress}");
-    return string.Join(" | ", parts);
-}
 
 static string Truncate(string value, int maxLength) =>
     value.Length <= maxLength ? value : value[..(maxLength - 1)] + "…";
-
-// ═══════════════════════════════════════════════════════════════════════════
 
 record CsvOrder
 {
@@ -293,11 +212,6 @@ record CsvOrder
     public double? Latitude { get; init; }
     public string FullAddress { get; init; } = "";
 
-    /// <summary>
-    /// Extract container size in yards from the Container column.
-    /// Formats: "30 YARD ROLL OFF", "20 YARD ROLL OFF", "35 YARD COMPACTOR", etc.
-    /// Returns 0 for non-roll-off containers (toters, frontload, etc.)
-    /// </summary>
     public int ContainerSize
     {
         get

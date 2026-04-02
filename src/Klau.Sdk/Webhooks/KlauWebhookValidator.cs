@@ -86,7 +86,7 @@ public sealed class KlauWebhookValidator
     {
         var message = $"{timestamp}.{body}";
         var hash = HMACSHA256.HashData(_secretBytes, Encoding.UTF8.GetBytes(message));
-        return Convert.ToHexStringLower(hash);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private static bool TryParseHeader(string header, out long timestamp, out string signature)

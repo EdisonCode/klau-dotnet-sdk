@@ -6,7 +6,7 @@ Official .NET SDK for the [Klau](https://getklau.com) API. Built for dev teams i
 dotnet add package Klau.Sdk
 ```
 
-Requires .NET 9.0+. Dependencies: `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Diagnostics.HealthChecks`.
+Requires .NET 8.0+. Dependencies: `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Diagnostics.HealthChecks`.
 
 ## Quick Start
 
@@ -17,11 +17,13 @@ using Klau.Sdk;
 
 using var klau = new KlauClient("kl_live_your_api_key_here");
 
-// Get today's dispatch board
-var board = await klau.Dispatches.GetBoardAsync("2026-03-15");
+// Verify your connection — works on every account, even empty ones
+var company = await klau.Company.GetAsync();
+Console.WriteLine($"Connected to {company.Name}");
 
-foreach (var driver in board.Drivers)
-    Console.WriteLine($"{driver.Name}: {driver.Jobs.Count} jobs, {driver.TotalDriveMinutes} min drive");
+// Check dispatch readiness (drivers, trucks, yards configured?)
+var readiness = await klau.Readiness.CheckAsync();
+Console.WriteLine($"Can go live: {readiness.CanGoLive}");
 ```
 
 ## Integration Guide: Jobs In, Assignments Out
@@ -30,55 +32,7 @@ Most integrations follow the same pattern: push work orders from your backend in
 
 ### Step 1: Push jobs into Klau
 
-Use `ExternalId` on every job to correlate Klau records with your system's IDs. This is the key to reliable two-way sync.
-
-```csharp
-// Single job
-var job = await klau.Jobs.CreateAsync(new CreateJobRequest
-{
-    CustomerId = "customer-id",
-    SiteId = "site-id",
-    Type = JobType.DELIVERY,
-    ContainerSize = 20,
-    RequestedDate = "2026-03-15",
-    TimeWindow = TimeWindow.MORNING,
-    ExternalId = "YOUR-WORK-ORDER-123"  // your system's ID
-});
-
-// Batch — send up to 100 jobs in one call
-var result = await klau.Jobs.CreateBatchAsync(new List<CreateJobRequest>
-{
-    new()
-    {
-        CustomerId = "cust-1",
-        SiteId = "site-1",
-        Type = JobType.DELIVERY,
-        ContainerSize = 20,
-        RequestedDate = "2026-03-15",
-        ExternalId = "WO-1001"
-    },
-    new()
-    {
-        CustomerId = "cust-2",
-        SiteId = "site-2",
-        Type = JobType.PICKUP,
-        ContainerSize = 30,
-        RequestedDate = "2026-03-15",
-        ExternalId = "WO-1002"
-    }
-});
-
-// Check for partial failures
-foreach (var created in result.Created)
-    Console.WriteLine($"Created {created.JobId} (external: {created.ExternalId})");
-
-foreach (var error in result.Errors)
-    Console.WriteLine($"Failed index {error.Index}: {error.Code} - {error.Message}");
-```
-
-### Alternative: Bulk import with auto-created customers/sites
-
-If your external system doesn't map to Klau customer/site IDs, use the import API instead. It resolves by name, auto-creates missing records, and waits for drive-time cache warm-up so optimization uses accurate truck routing times:
+The **Import API** is the recommended way to push jobs. It resolves customers and sites by name, auto-creates missing records, and waits for drive-time cache warm-up so optimization uses accurate truck routing times. Use `ExternalId` on every job to correlate Klau records with your system's IDs — this is the key to reliable two-way sync.
 
 ```csharp
 var import = await klau.Import.ImportAndWaitAsync(new ImportJobsRequest
@@ -134,6 +88,31 @@ if (result.BatchId is not null)
     }
     while (readiness.Status is "warming" or "partial");
 }
+```
+
+### Alternative: Batch create (when you already have Klau IDs)
+
+If your system already tracks Klau customer and site IDs (e.g. after an initial import), you can use `CreateBatchAsync` for faster job creation without the name-resolution overhead:
+
+```csharp
+var result = await klau.Jobs.CreateBatchAsync(new List<CreateJobRequest>
+{
+    new()
+    {
+        CustomerId = "cust-1",
+        SiteId = "site-1",
+        Type = JobType.DELIVERY,
+        ContainerSize = 20,
+        RequestedDate = "2026-03-15",
+        ExternalId = "WO-1001"
+    }
+});
+
+foreach (var created in result.Created)
+    Console.WriteLine($"Created {created.JobId} (external: {created.ExternalId})");
+
+foreach (var error in result.Errors)
+    Console.WriteLine($"Failed index {error.Index}: {error.Code} - {error.Message}");
 ```
 
 ### Step 2: Optimize dispatch
@@ -664,9 +643,9 @@ var json = await response.Content.ReadAsStringAsync();
 
 | Example | Description |
 |---------|-------------|
-| [`CsvJobImport`](examples/CsvJobImport/) | Console app: CSV → batch create → optimize → read assignments |
+| [`EnterpriseSimulator`](examples/EnterpriseSimulator/) | **Start here.** Full enterprise pipeline: CSV export → import → optimize → export dispatch plan |
+| [`CsvJobImport`](examples/CsvJobImport/) | Minimal CSV import: parse → import → optimize → read assignments |
 | [`WebhookIntegration`](examples/WebhookIntegration/) | Kestrel web app: bidirectional sync with webhooks |
-| [`EnterpriseSimulator`](examples/EnterpriseSimulator/) | Full enterprise pipeline: CSV export → import → optimize → export dispatch plan |
 
 ## License
 
