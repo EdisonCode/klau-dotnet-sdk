@@ -8,6 +8,9 @@ public sealed record Job
     [JsonPropertyName("id")]
     public string Id { get; init; } = string.Empty;
 
+    [JsonPropertyName("companyId")]
+    public string CompanyId { get; init; } = string.Empty;
+
     [JsonPropertyName("type")]
     public JobType Type { get; init; }
 
@@ -55,6 +58,9 @@ public sealed record Job
 
     [JsonPropertyName("truckId")]
     public string? TruckId { get; init; }
+
+    [JsonPropertyName("dispatchId")]
+    public string? DispatchId { get; init; }
 
     [JsonPropertyName("sequence")]
     public int? Sequence { get; init; }
@@ -134,6 +140,15 @@ public sealed record CreateJobRequest
 
 public sealed record UpdateJobRequest
 {
+    [JsonPropertyName("customerId")]
+    public string? CustomerId { get; init; }
+
+    [JsonPropertyName("siteId")]
+    public string? SiteId { get; init; }
+
+    [JsonPropertyName("type")]
+    public JobType? Type { get; init; }
+
     [JsonPropertyName("containerSize")]
     public int? ContainerSize { get; init; }
 
@@ -155,11 +170,22 @@ public sealed record UpdateJobRequest
     [JsonPropertyName("dumpSiteId")]
     public string? DumpSiteId { get; init; }
 
+    [JsonPropertyName("preferredYardId")]
+    public string? PreferredYardId { get; init; }
+
     [JsonPropertyName("containerNumber")]
     public string? ContainerNumber { get; init; }
 
     [JsonPropertyName("containerSlot")]
     public ContainerSlot? ContainerSlot { get; init; }
+
+    /// <summary>Actual start time (ISO 8601). Set to null to clear.</summary>
+    [JsonPropertyName("actualStartTime")]
+    public string? ActualStartTime { get; init; }
+
+    /// <summary>Actual end time (ISO 8601). Set to null to clear.</summary>
+    [JsonPropertyName("actualEndTime")]
+    public string? ActualEndTime { get; init; }
 }
 
 public sealed record BatchCreateResult
