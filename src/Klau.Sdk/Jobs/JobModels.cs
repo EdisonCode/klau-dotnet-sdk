@@ -32,6 +32,9 @@ public sealed record Job
     [JsonPropertyName("containerNumber")]
     public string? ContainerNumber { get; init; }
 
+    [JsonPropertyName("containerSlot")]
+    public ContainerSlot? ContainerSlot { get; init; }
+
     [JsonPropertyName("scheduledDate")]
     public string? ScheduledDate { get; init; }
 
@@ -154,6 +157,9 @@ public sealed record UpdateJobRequest
 
     [JsonPropertyName("containerNumber")]
     public string? ContainerNumber { get; init; }
+
+    [JsonPropertyName("containerSlot")]
+    public ContainerSlot? ContainerSlot { get; init; }
 }
 
 public sealed record BatchCreateResult
@@ -229,4 +235,59 @@ public sealed record UnassignJobResult
 
     [JsonPropertyName("previousDispatchId")]
     public string? PreviousDispatchId { get; init; }
+}
+
+/// <summary>
+/// A single telemetry entry pushing actual start/end times for a job.
+/// Closes the data flywheel so Klau learns real service times.
+/// Provide at least one of <see cref="JobId"/> or <see cref="ExternalId"/>.
+/// </summary>
+public sealed record TelemetryEntry
+{
+    /// <summary>Klau job ID. Optional if <see cref="ExternalId"/> is provided.</summary>
+    [JsonPropertyName("jobId")]
+    public string? JobId { get; init; }
+
+    /// <summary>External system ID. Optional if <see cref="JobId"/> is provided.</summary>
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; init; }
+
+    /// <summary>Actual start time (ISO 8601). Nullable.</summary>
+    [JsonPropertyName("actualStartTime")]
+    public string? ActualStartTime { get; init; }
+
+    /// <summary>Actual end time (ISO 8601). Nullable.</summary>
+    [JsonPropertyName("actualEndTime")]
+    public string? ActualEndTime { get; init; }
+}
+
+/// <summary>
+/// Result from the telemetry batch endpoint.
+/// </summary>
+public sealed record BatchTelemetryResult
+{
+    [JsonPropertyName("processed")]
+    public int Processed { get; init; }
+
+    [JsonPropertyName("updated")]
+    public int Updated { get; init; }
+
+    [JsonPropertyName("notFound")]
+    public IReadOnlyList<string> NotFound { get; init; } = [];
+
+    [JsonPropertyName("errors")]
+    public IReadOnlyList<TelemetryError> Errors { get; init; } = [];
+}
+
+/// <summary>
+/// A per-entry error from the telemetry batch endpoint.
+/// </summary>
+public sealed record TelemetryError
+{
+    /// <summary>The jobId or externalId that caused the error.</summary>
+    [JsonPropertyName("ref")]
+    public string Ref { get; init; } = string.Empty;
+
+    [JsonPropertyName("message")]
+    public string Message { get; init; } = string.Empty;
 }

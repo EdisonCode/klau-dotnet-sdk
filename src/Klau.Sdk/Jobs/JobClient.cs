@@ -19,6 +19,8 @@ public interface IJobClient
     Task StartAsync(string id, CancellationToken ct = default);
     Task CompleteAsync(string id, CancellationToken ct = default);
     Task DeleteAsync(string id, CancellationToken ct = default);
+    Task<BatchTelemetryResult> RecordTelemetryBatchAsync(IReadOnlyList<TelemetryEntry> entries, CancellationToken ct = default);
+    Task<BatchTelemetryResult> RecordTelemetryBatchAsync(IReadOnlyList<TelemetryEntry> entries, KlauRequestOptions options, CancellationToken ct = default);
 }
 
 public sealed class JobClient : IJobClient
@@ -180,5 +182,31 @@ public sealed class JobClient : IJobClient
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
         await _http.DeleteAsync($"api/v1/jobs/{id}", _tenantId, ct);
+    }
+
+    /// <summary>
+    /// Push actual start/end times for jobs in batch. Closes the data flywheel
+    /// so Klau learns real service times.
+    /// Each entry must have at least one of <c>JobId</c> or <c>ExternalId</c>.
+    /// </summary>
+    public async Task<BatchTelemetryResult> RecordTelemetryBatchAsync(
+        IReadOnlyList<TelemetryEntry> entries,
+        CancellationToken ct = default)
+    {
+        return await _http.PostAsync<BatchTelemetryResult>(
+            "api/v1/jobs/telemetry/batch", new { entries }, _tenantId, ct);
+    }
+
+    /// <inheritdoc cref="RecordTelemetryBatchAsync(IReadOnlyList{TelemetryEntry}, CancellationToken)"/>
+    /// <param name="entries">The telemetry entries to submit.</param>
+    /// <param name="options">Per-request options (idempotency key, timeout, tenant override).</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<BatchTelemetryResult> RecordTelemetryBatchAsync(
+        IReadOnlyList<TelemetryEntry> entries,
+        KlauRequestOptions options,
+        CancellationToken ct = default)
+    {
+        return await _http.PostAsync<BatchTelemetryResult>(
+            "api/v1/jobs/telemetry/batch", new { entries }, _tenantId, options, ct);
     }
 }

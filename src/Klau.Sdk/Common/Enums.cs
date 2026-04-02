@@ -97,3 +97,12 @@ public enum OptimizationJobStatus
     FAILED,
     SKIPPED
 }
+
+/// <summary>
+/// Container slot assignment for dual-container trucks (null for standard trucks).
+/// </summary>
+public enum ContainerSlot
+{
+    PRIMARY,
+    SECONDARY
+}

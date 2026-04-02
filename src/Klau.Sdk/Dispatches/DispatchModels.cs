@@ -65,6 +65,9 @@ public sealed record DispatchBoardJob
     [JsonPropertyName("containerNumber")]
     public string? ContainerNumber { get; init; }
 
+    [JsonPropertyName("containerSlot")]
+    public ContainerSlot? ContainerSlot { get; init; }
+
     [JsonPropertyName("scheduledDate")]
     public string? ScheduledDate { get; init; }
 

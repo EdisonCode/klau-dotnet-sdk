@@ -255,6 +255,22 @@ public class SerializationTests
     }
 
     [Fact]
+    public void ContainerSlot_AllValues_SerializeCorrectly()
+    {
+        var expectedMappings = new Dictionary<ContainerSlot, string>
+        {
+            { ContainerSlot.PRIMARY, "PRIMARY" },
+            { ContainerSlot.SECONDARY, "SECONDARY" }
+        };
+
+        foreach (var (enumVal, expected) in expectedMappings)
+        {
+            var json = JsonSerializer.Serialize(enumVal, JsonOptions);
+            Assert.Equal($"\"{expected}\"", json);
+        }
+    }
+
+    [Fact]
     public async Task UpdateJobRequest_OnlySerializesSetFields()
     {
         var (client, handler) = CreateClient();

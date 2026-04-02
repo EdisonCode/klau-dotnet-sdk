@@ -271,4 +271,92 @@ public class JobClientTests
         Assert.Equal(HttpMethod.Delete, req.Method);
         Assert.EndsWith("api/v1/jobs/j-1", req.RequestUri!.AbsolutePath);
     }
+
+    // --- ContainerSlot ---
+
+    [Fact]
+    public async Task UpdateAsync_SerializesContainerSlot()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new { id = "j-1", type = "DELIVERY", status = "UNASSIGNED",
+            customerName = "Test", containerSlot = "SECONDARY", createdAt = "2026-01-01T00:00:00Z", updatedAt = "2026-01-01T00:00:00Z" });
+
+        var request = new UpdateJobRequest { ContainerSlot = ContainerSlot.SECONDARY };
+        var job = await client.Jobs.UpdateAsync("j-1", request);
+
+        // Verify request serialization
+        var body = handler.SentBodies[0]!;
+        using var doc = JsonDocument.Parse(body);
+        Assert.Equal("SECONDARY", doc.RootElement.GetProperty("containerSlot").GetString());
+
+        // Verify response deserialization
+        Assert.Equal(ContainerSlot.SECONDARY, job.ContainerSlot);
+    }
+
+    // --- RecordTelemetryBatchAsync ---
+
+    [Fact]
+    public async Task RecordTelemetryBatchAsync_SendsCorrectPathAndBody()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            processed = 2, updated = 2, notFound = new string[0], errors = new object[0]
+        });
+
+        var entries = new List<TelemetryEntry>
+        {
+            new() { JobId = "j-1", ActualStartTime = "2026-04-02T08:15:00Z", ActualEndTime = "2026-04-02T08:42:00Z" },
+            new() { ExternalId = "WCN-ORD-1234", ActualStartTime = "2026-04-02T09:00:00Z" }
+        };
+
+        var result = await client.Jobs.RecordTelemetryBatchAsync(entries);
+
+        var req = Assert.Single(handler.SentRequests);
+        Assert.Equal(HttpMethod.Post, req.Method);
+        Assert.EndsWith("api/v1/jobs/telemetry/batch", req.RequestUri!.AbsolutePath);
+
+        var body = handler.SentBodies[0]!;
+        using var doc = JsonDocument.Parse(body);
+        var arr = doc.RootElement.GetProperty("entries");
+        Assert.Equal(2, arr.GetArrayLength());
+        Assert.Equal("j-1", arr[0].GetProperty("jobId").GetString());
+        Assert.Equal("2026-04-02T08:15:00Z", arr[0].GetProperty("actualStartTime").GetString());
+        Assert.Equal("2026-04-02T08:42:00Z", arr[0].GetProperty("actualEndTime").GetString());
+        Assert.Equal("WCN-ORD-1234", arr[1].GetProperty("externalId").GetString());
+
+        Assert.Equal(2, result.Processed);
+        Assert.Equal(2, result.Updated);
+        Assert.Empty(result.NotFound);
+    }
+
+    [Fact]
+    public async Task RecordTelemetryBatchAsync_ReturnsNotFoundAndErrors()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            processed = 3,
+            updated = 1,
+            notFound = new[] { "WCN-ORD-9999" },
+            errors = new[] { new { @ref = "j-bad", message = "Invalid time range" } }
+        });
+
+        var entries = new List<TelemetryEntry>
+        {
+            new() { JobId = "j-1", ActualStartTime = "2026-04-02T08:15:00Z" },
+            new() { ExternalId = "WCN-ORD-9999", ActualEndTime = "2026-04-02T09:00:00Z" },
+            new() { JobId = "j-bad", ActualStartTime = "2026-04-02T10:00:00Z", ActualEndTime = "2026-04-02T09:00:00Z" }
+        };
+
+        var result = await client.Jobs.RecordTelemetryBatchAsync(entries);
+
+        Assert.Equal(3, result.Processed);
+        Assert.Equal(1, result.Updated);
+        Assert.Single(result.NotFound);
+        Assert.Equal("WCN-ORD-9999", result.NotFound[0]);
+        var error = Assert.Single(result.Errors);
+        Assert.Equal("j-bad", error.Ref);
+        Assert.Equal("Invalid time range", error.Message);
+    }
 }
