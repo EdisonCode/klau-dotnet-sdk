@@ -40,6 +40,11 @@ public sealed class KlauHttpClient : IDisposable
     /// <summary>
     /// Default retry configuration for transient errors.
     /// Retries on 429 (rate limit), 502, 503, 504, and network errors.
+    /// Uses exponential backoff with jitter to avoid thundering-herd effects
+    /// when many SDK consumers share the same API.
+    /// For high-throughput batch workloads, consider wrapping calls with an
+    /// external circuit breaker (e.g. Polly) to avoid queuing retries during
+    /// sustained outages.
     /// </summary>
     private const int MaxRetries = 3;
     private static readonly TimeSpan[] RetryDelays = [
@@ -47,6 +52,12 @@ public sealed class KlauHttpClient : IDisposable
         TimeSpan.FromSeconds(1),
         TimeSpan.FromSeconds(2),
     ];
+
+    /// <summary>
+    /// Maximum delay the SDK will honour from a Retry-After header.
+    /// Prevents a misbehaving or compromised server from blocking callers indefinitely.
+    /// </summary>
+    private static readonly TimeSpan MaxRetryAfterDelay = TimeSpan.FromSeconds(60);
 
     private static readonly HashSet<HttpStatusCode> RetryableStatusCodes =
     [
@@ -345,7 +356,30 @@ public sealed class KlauHttpClient : IDisposable
     }
 
     /// <summary>
+    /// Returns true if the request is safe to retry (idempotent method, or has
+    /// an Idempotency-Key header that lets the server deduplicate).
+    /// POST/PATCH without an idempotency key are NOT retried because the server
+    /// may have already processed the request — retrying can create duplicates.
+    /// </summary>
+    private static bool IsSafeToRetry(HttpRequestMessage request)
+    {
+        // GET, HEAD, PUT, DELETE, OPTIONS are idempotent by HTTP spec
+        if (request.Method == HttpMethod.Get || request.Method == HttpMethod.Head
+            || request.Method == HttpMethod.Put || request.Method == HttpMethod.Delete
+            || request.Method == HttpMethod.Options)
+            return true;
+
+        // POST/PATCH with an explicit idempotency key are safe to retry
+        return request.Headers.Contains("Idempotency-Key");
+    }
+
+    /// <summary>
     /// Send an HTTP request with automatic retry for transient errors.
+    /// Non-idempotent requests (POST/PATCH without Idempotency-Key) are only
+    /// retried on 429 (rate limit) since the server guarantees it did not
+    /// process the request. Timeouts, 502/503/504, and network errors are NOT
+    /// retried for non-idempotent requests because the server may have already
+    /// begun processing — retrying would cause duplicate side effects.
     /// Emits OpenTelemetry spans via <see cref="ActivitySource"/>.
     /// </summary>
     private async Task<HttpResponseMessage> SendWithRetry(
@@ -362,6 +396,7 @@ public sealed class KlauHttpClient : IDisposable
         HttpResponseMessage? lastResponse = null;
         int totalAttempts = 0;
         bool spanTagged = false;
+        bool? safeToRetry = null;
 
         for (int attempt = 0; attempt <= MaxRetries; attempt++)
         {
@@ -369,17 +404,33 @@ public sealed class KlauHttpClient : IDisposable
 
             if (attempt > 0)
             {
-                var delay = RetryDelays[Math.Min(attempt - 1, RetryDelays.Length - 1)];
+                var baseDelay = RetryDelays[Math.Min(attempt - 1, RetryDelays.Length - 1)];
 
-                // Respect Retry-After header from 429 responses
-                if (lastResponse?.Headers.RetryAfter?.Delta is { } retryAfter)
+                // Add jitter (50-100% of base delay) to avoid thundering-herd synchronization
+                var jitter = baseDelay * (0.5 + Random.Shared.NextDouble() * 0.5);
+                var delay = jitter;
+
+                // Respect Retry-After header (delta-seconds or HTTP-date format), capped
+                var retryAfter = lastResponse?.Headers.RetryAfter?.Delta
+                    ?? (lastResponse?.Headers.RetryAfter?.Date is { } date
+                        ? date - DateTimeOffset.UtcNow
+                        : null);
+
+                if (retryAfter is { } ra && ra > TimeSpan.Zero)
                 {
-                    delay = retryAfter > delay ? retryAfter : delay;
+                    if (ra > MaxRetryAfterDelay)
+                        _logger.LogWarning("Retry-After header requested {Seconds}s, capping at {Max}s", ra.TotalSeconds, MaxRetryAfterDelay.TotalSeconds);
+                    var capped = ra > MaxRetryAfterDelay ? MaxRetryAfterDelay : ra;
+                    delay = capped > delay ? capped : delay;
                 }
 
                 _logger.LogWarning(
                     "Klau API request failed (attempt {Attempt}/{Max}), retrying in {Delay}ms",
                     attempt, MaxRetries + 1, delay.TotalMilliseconds);
+
+                // Dispose the previous response to release its content stream
+                lastResponse?.Dispose();
+                lastResponse = null;
 
                 await Task.Delay(delay, ct);
             }
@@ -398,6 +449,15 @@ public sealed class KlauHttpClient : IDisposable
                     spanTagged = true;
                 }
 
+                // Cache idempotency check from first request (method doesn't change across retries)
+                if (safeToRetry is null)
+                {
+                    safeToRetry = IsSafeToRetry(request);
+                    activity?.SetTag("klau.retry.safe_to_retry", safeToRetry.Value);
+                    if (request.Headers.Contains("Idempotency-Key"))
+                        activity?.SetTag("klau.retry.has_idempotency_key", true);
+                }
+
                 lastResponse = await _http.SendAsync(request, ct);
 
                 if (!RetryableStatusCodes.Contains(lastResponse.StatusCode))
@@ -409,15 +469,28 @@ public sealed class KlauHttpClient : IDisposable
                         activity?.SetStatus(ActivityStatusCode.Error);
                     return lastResponse;
                 }
+
+                // Non-idempotent requests: only retry on 429 (server guarantees no processing)
+                if (!safeToRetry.Value && lastResponse.StatusCode != HttpStatusCode.TooManyRequests)
+                {
+                    var reqPath = request.RequestUri?.AbsolutePath ?? request.RequestUri?.OriginalString ?? "unknown";
+                    _logger.LogWarning(
+                        "Klau API returned {StatusCode} for non-idempotent {Method} {Path} — not retrying to avoid duplicate side effects",
+                        (int)lastResponse.StatusCode, request.Method.Method, reqPath);
+                    activity?.SetTag("http.response.status_code", (int)lastResponse.StatusCode);
+                    activity?.SetTag("klau.retry.skipped_reason", "non_idempotent");
+                    activity?.SetStatus(ActivityStatusCode.Error);
+                    return lastResponse;
+                }
             }
-            catch (HttpRequestException ex) when (attempt < MaxRetries)
+            catch (HttpRequestException ex) when (attempt < MaxRetries && (safeToRetry ?? false))
             {
                 _logger.LogWarning(ex,
                     "Klau API network error (attempt {Attempt}/{Max})",
                     attempt + 1, MaxRetries + 1);
                 lastResponse = null;
             }
-            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested && attempt < MaxRetries)
+            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested && attempt < MaxRetries && (safeToRetry ?? false))
             {
                 // Timeout (not user cancellation)
                 _logger.LogWarning(ex,

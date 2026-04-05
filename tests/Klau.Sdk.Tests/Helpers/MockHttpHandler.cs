@@ -11,7 +11,7 @@ namespace Klau.Sdk.Tests.Helpers;
 /// </summary>
 public sealed class MockHttpHandler : DelegatingHandler
 {
-    private readonly Queue<HttpResponseMessage> _responses = new();
+    private readonly Queue<Func<HttpResponseMessage>> _responses = new();
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -56,7 +56,7 @@ public sealed class MockHttpHandler : DelegatingHandler
         var json = JsonSerializer.Serialize(envelope, JsonOptions);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        _responses.Enqueue(new HttpResponseMessage(status) { Content = content });
+        _responses.Enqueue(() => new HttpResponseMessage(status) { Content = content });
     }
 
     /// <summary>
@@ -66,7 +66,16 @@ public sealed class MockHttpHandler : DelegatingHandler
     public void EnqueueRawResponse(HttpStatusCode status, string body, string contentType = "text/plain")
     {
         var content = new StringContent(body, Encoding.UTF8, contentType);
-        _responses.Enqueue(new HttpResponseMessage(status) { Content = content });
+        _responses.Enqueue(() => new HttpResponseMessage(status) { Content = content });
+    }
+
+    /// <summary>
+    /// Enqueue an exception to be thrown on the next request.
+    /// Useful for testing retry behavior on network errors and timeouts.
+    /// </summary>
+    public void EnqueueException(Exception exception)
+    {
+        _responses.Enqueue(() => throw exception);
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(
@@ -88,7 +97,7 @@ public sealed class MockHttpHandler : DelegatingHandler
                 $"MockHttpHandler: No responses enqueued. Request was {request.Method} {request.RequestUri}");
         }
 
-        return _responses.Dequeue();
+        return _responses.Dequeue()();
     }
 }
 

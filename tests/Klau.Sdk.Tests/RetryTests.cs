@@ -2,6 +2,7 @@ using System.Net;
 using Klau.Sdk.Common;
 using Klau.Sdk.Jobs;
 using Klau.Sdk.Tests.Helpers;
+using KlauRequestOptions = Klau.Sdk.Common.KlauRequestOptions;
 
 namespace Klau.Sdk.Tests;
 
@@ -158,14 +159,172 @@ public class RetryTests
     }
 
     [Fact]
-    public async Task VoidEndpoint_RetriesOnTransientError()
+    public async Task PostEndpoint_DoesNotRetryOn503()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.ServiceUnavailable);
+
+        // POST without Idempotency-Key should NOT retry on 503 — the server
+        // may have processed the request before returning the error.
+        await Assert.ThrowsAsync<KlauApiException>(
+            () => client.Jobs.CancelAsync("j-1"));
+
+        Assert.Single(handler.SentRequests);
+    }
+
+    [Fact]
+    public async Task PostEndpoint_DoesRetryOn429()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.TooManyRequests);
+        handler.EnqueueResponse(HttpStatusCode.OK);
+
+        // POST should always retry 429 — the server guarantees it did not
+        // process the request.
+        await client.Jobs.CancelAsync("j-1");
+
+        Assert.Equal(2, handler.SentRequests.Count);
+    }
+
+    [Fact]
+    public async Task GetEndpoint_DoesRetryOn503()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.ServiceUnavailable);
+        handler.EnqueueResponse(HttpStatusCode.OK, SuccessJob);
+
+        // GET is idempotent and safe to retry on any transient error.
+        var job = await client.Jobs.GetAsync("j-1");
+
+        Assert.Equal(2, handler.SentRequests.Count);
+        Assert.Equal("j-1", job.Id);
+    }
+
+    [Fact]
+    public async Task PatchEndpoint_DoesNotRetryOn502()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.BadGateway);
+
+        // PATCH without Idempotency-Key should NOT retry on 502 — the server
+        // may have applied the partial update before the gateway failed.
+        await Assert.ThrowsAsync<KlauApiException>(
+            () => client.Jobs.UpdateAsync("j-1", new UpdateJobRequest { ContainerSize = 30 }));
+
+        Assert.Single(handler.SentRequests);
+        Assert.Equal(HttpMethod.Patch, handler.SentRequests[0].Method);
+    }
+
+    [Fact]
+    public async Task PostWithIdempotencyKey_DoesRetryOn503()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.ServiceUnavailable);
+        handler.EnqueueResponse(HttpStatusCode.OK, new { jobId = "j-new" });
+
+        // POST with Idempotency-Key IS safe to retry — the server deduplicates.
+        var jobId = await client.Jobs.CreateAsync(
+            new CreateJobRequest
+            {
+                CustomerId = "c-1",
+                SiteId = "s-1",
+                Type = JobType.DELIVERY,
+                RequestedDate = "2026-04-05",
+            },
+            new KlauRequestOptions { IdempotencyKey = "idem-123" });
+
+        Assert.Equal(2, handler.SentRequests.Count);
+        Assert.True(handler.SentRequests[0].Headers.Contains("Idempotency-Key"));
+        Assert.Equal("j-new", jobId);
+    }
+
+    [Fact]
+    public async Task PostEndpoint_DoesNotRetryOnNetworkError()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueException(new HttpRequestException("Connection refused"));
+
+        // POST without Idempotency-Key should NOT retry network errors —
+        // the server may have received and processed the request.
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => client.Jobs.CancelAsync("j-1"));
+
+        Assert.Single(handler.SentRequests);
+    }
+
+    [Fact]
+    public async Task PostEndpoint_DoesNotRetryOnTimeout()
+    {
+        var (client, handler) = CreateClient();
+        // TaskCanceledException with a non-cancelled token simulates an HTTP timeout
+        handler.EnqueueException(new TaskCanceledException("The request timed out"));
+
+        // POST without Idempotency-Key should NOT retry timeouts —
+        // the server may have started processing before the timeout.
+        await Assert.ThrowsAsync<TaskCanceledException>(
+            () => client.Jobs.CancelAsync("j-1"));
+
+        Assert.Single(handler.SentRequests);
+    }
+
+    [Fact]
+    public async Task GetEndpoint_DoesRetryOnNetworkError()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueException(new HttpRequestException("Connection refused"));
+        handler.EnqueueResponse(HttpStatusCode.OK, SuccessJob);
+
+        // GET is idempotent — network errors should be retried.
+        var job = await client.Jobs.GetAsync("j-1");
+
+        Assert.Equal(2, handler.SentRequests.Count);
+        Assert.Equal("j-1", job.Id);
+    }
+
+    [Fact]
+    public async Task GetEndpoint_DoesRetryOnTimeout()
+    {
+        var (client, handler) = CreateClient();
+        // TaskCanceledException with a non-cancelled token simulates an HTTP timeout
+        handler.EnqueueException(new TaskCanceledException("The request timed out"));
+        handler.EnqueueResponse(HttpStatusCode.OK, SuccessJob);
+
+        // GET is idempotent — timeouts should be retried.
+        var job = await client.Jobs.GetAsync("j-1");
+
+        Assert.Equal(2, handler.SentRequests.Count);
+        Assert.Equal("j-1", job.Id);
+    }
+
+    [Fact]
+    public async Task PostEndpoint_ExhaustsAll429Retries()
+    {
+        var (client, handler) = CreateClient();
+        // MaxRetries is 3, so total attempts = 4 (initial + 3 retries).
+        // Even non-idempotent POST retries on 429 because the server
+        // guarantees no processing — so all 4 attempts should fire.
+        handler.EnqueueResponse(HttpStatusCode.TooManyRequests);
+        handler.EnqueueResponse(HttpStatusCode.TooManyRequests);
+        handler.EnqueueResponse(HttpStatusCode.TooManyRequests);
+        handler.EnqueueResponse(HttpStatusCode.TooManyRequests);
+
+        await Assert.ThrowsAsync<KlauApiException>(
+            () => client.Jobs.CancelAsync("j-1"));
+
+        Assert.Equal(4, handler.SentRequests.Count);
+    }
+
+    [Fact]
+    public async Task DeleteEndpoint_DoesRetryOn503()
     {
         var (client, handler) = CreateClient();
         handler.EnqueueResponse(HttpStatusCode.ServiceUnavailable);
         handler.EnqueueResponse(HttpStatusCode.OK);
 
-        await client.Jobs.CancelAsync("j-1");
+        // DELETE is idempotent — safe to retry on any transient error.
+        await client.Jobs.DeleteAsync("j-1");
 
         Assert.Equal(2, handler.SentRequests.Count);
+        Assert.Equal(HttpMethod.Delete, handler.SentRequests[0].Method);
     }
 }
