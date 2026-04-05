@@ -52,7 +52,7 @@ public sealed class ImportClient : IImportClient
     /// <param name="ct">Cancellation token.</param>
     public async Task<BatchReadiness> GetReadinessAsync(string batchId, CancellationToken ct = default)
     {
-        return await _http.GetAsync<BatchReadiness>($"api/v1/import/batches/{batchId}/readiness", _tenantId, ct);
+        return await _http.GetAsync<BatchReadiness>($"api/v1/import/batches/{QueryBuilder.PathEncode(batchId)}/readiness", _tenantId, ct);
     }
 
     /// <summary>

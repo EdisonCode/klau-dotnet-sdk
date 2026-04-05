@@ -31,7 +31,7 @@ public sealed class StorefrontClient : IStorefrontClient
     /// </summary>
     public async Task<StorefrontConfig> GetConfigAsync(string slug, CancellationToken ct = default)
     {
-        return await _http.GetAsync<StorefrontConfig>($"api/v1/storefronts/{slug}/config", _tenantId, ct);
+        return await _http.GetAsync<StorefrontConfig>($"api/v1/storefronts/{QueryBuilder.PathEncode(slug)}/config", _tenantId, ct);
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public sealed class StorefrontClient : IStorefrontClient
         SubmitOrderRequest request,
         CancellationToken ct = default)
     {
-        return await _http.PostAsync<OrderConfirmation>($"api/v1/storefronts/{slug}/orders", request, _tenantId, ct);
+        return await _http.PostAsync<OrderConfirmation>($"api/v1/storefronts/{QueryBuilder.PathEncode(slug)}/orders", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -54,7 +54,7 @@ public sealed class StorefrontClient : IStorefrontClient
         CancellationToken ct = default)
     {
         return await _http.PostAsync<AvailabilityResult>(
-            $"api/v1/storefronts/{slug}/check-availability", request, _tenantId, ct);
+            $"api/v1/storefronts/{QueryBuilder.PathEncode(slug)}/check-availability", request, _tenantId, ct);
     }
 
     /// <summary>

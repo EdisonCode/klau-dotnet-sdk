@@ -3,10 +3,16 @@ using System.Web;
 namespace Klau.Sdk.Common;
 
 /// <summary>
-/// Builds URL query strings from optional parameters.
+/// Builds URL query strings and encodes path segments.
 /// </summary>
 internal static class QueryBuilder
 {
+    /// <summary>
+    /// Percent-encode a value for safe use in a URL path segment.
+    /// Prevents path traversal when interpolating caller-supplied IDs or slugs.
+    /// </summary>
+    public static string PathEncode(string value) => Uri.EscapeDataString(value);
+
     public static string Build(string path, params (string key, object? value)[] parameters)
     {
         var query = HttpUtility.ParseQueryString(string.Empty);

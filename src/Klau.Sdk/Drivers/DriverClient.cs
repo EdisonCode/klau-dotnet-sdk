@@ -60,7 +60,7 @@ public sealed class DriverClient : IDriverClient
 
     public async Task<Driver> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Driver>($"api/v1/drivers/{id}", _tenantId, ct);
+        return await _http.GetAsync<Driver>($"api/v1/drivers/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -77,11 +77,11 @@ public sealed class DriverClient : IDriverClient
     /// </summary>
     public async Task<Driver> UpdateAsync(string id, UpdateDriverRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Driver>($"api/v1/drivers/{id}", request, _tenantId, ct);
+        return await _http.PatchAsync<Driver>($"api/v1/drivers/{QueryBuilder.PathEncode(id)}", request, _tenantId, ct);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/drivers/{id}", _tenantId, ct);
+        await _http.DeleteAsync($"api/v1/drivers/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 }

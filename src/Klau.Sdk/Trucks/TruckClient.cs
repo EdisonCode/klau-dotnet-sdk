@@ -57,7 +57,7 @@ public sealed class TruckClient : ITruckClient
 
     public async Task<Truck> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Truck>($"api/v1/trucks/{id}", _tenantId, ct);
+        return await _http.GetAsync<Truck>($"api/v1/trucks/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -71,11 +71,11 @@ public sealed class TruckClient : ITruckClient
 
     public async Task UpdateAsync(string id, UpdateTruckRequest request, CancellationToken ct = default)
     {
-        await _http.PatchAsync<SuccessResponse>($"api/v1/trucks/{id}", request, _tenantId, ct);
+        await _http.PatchAsync<SuccessResponse>($"api/v1/trucks/{QueryBuilder.PathEncode(id)}", request, _tenantId, ct);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/trucks/{id}", _tenantId, ct);
+        await _http.DeleteAsync($"api/v1/trucks/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 }

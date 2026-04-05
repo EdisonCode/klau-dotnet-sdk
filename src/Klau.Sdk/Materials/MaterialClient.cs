@@ -45,7 +45,7 @@ public sealed class MaterialClient : IMaterialClient
     /// </summary>
     public async Task<Material> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Material>($"api/v1/materials/{id}", _tenantId, ct);
+        return await _http.GetAsync<Material>($"api/v1/materials/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -63,7 +63,7 @@ public sealed class MaterialClient : IMaterialClient
     public async Task UpdateAsync(string id, UpdateMaterialRequest request, CancellationToken ct = default)
     {
         // API uses PUT for material updates and returns { success: true }
-        await _http.PutAsync<SuccessResponse>($"api/v1/materials/{id}", request, _tenantId, ct);
+        await _http.PutAsync<SuccessResponse>($"api/v1/materials/{QueryBuilder.PathEncode(id)}", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public sealed class MaterialClient : IMaterialClient
     /// </summary>
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/materials/{id}", _tenantId, ct);
+        await _http.DeleteAsync($"api/v1/materials/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>

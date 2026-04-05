@@ -105,6 +105,7 @@ public sealed class KlauClient : IKlauClient, IDisposable
     public KlauClient(string apiKey, string baseUrl, HttpClient? httpClient = null, ILogger? logger = null)
     {
         ValidateApiKey(apiKey);
+        ValidateBaseUrl(baseUrl);
 
         Http = new KlauHttpClient(baseUrl, httpClient, logger);
 
@@ -170,6 +171,29 @@ public sealed class KlauClient : IKlauClient, IDisposable
                 "Generate a key at Settings > Developer in your Klau dashboard.",
                 nameof(apiKey));
         }
+    }
+
+    /// <summary>
+    /// Validate that the base URL uses HTTPS. API keys are bearer tokens —
+    /// transmitting them over plain HTTP exposes them to network interception.
+    /// Allows http://localhost for local development.
+    /// </summary>
+    private static void ValidateBaseUrl(string baseUrl)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseUrl, nameof(baseUrl));
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri))
+            throw new ArgumentException($"Invalid base URL: {baseUrl}", nameof(baseUrl));
+
+        if (uri.Scheme == Uri.UriSchemeHttps)
+            return;
+
+        if (uri.Scheme == Uri.UriSchemeHttp && uri.Host is "localhost" or "127.0.0.1")
+            return;
+
+        throw new ArgumentException(
+            $"Base URL must use HTTPS to protect API key in transit. Got: {uri.Scheme}://{uri.Host}",
+            nameof(baseUrl));
     }
 
     /// <summary>

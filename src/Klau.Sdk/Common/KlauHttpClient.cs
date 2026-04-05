@@ -630,9 +630,11 @@ public sealed class KlauHttpClient : IDisposable
         }
         catch (JsonException) { }
 
+        // Truncate body to avoid leaking sensitive server data in exception messages
+        var safeBody = body.Length > 200 ? body[..200] + "..." : body;
         throw new KlauApiException(
             "HTTP_ERROR",
-            $"Request failed with status {(int)response.StatusCode}: {body}",
+            $"Request failed with status {(int)response.StatusCode}: {safeBody}",
             (int)response.StatusCode)
         { RetryAfter = retryAfter };
     }

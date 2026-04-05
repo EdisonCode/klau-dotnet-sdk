@@ -71,7 +71,7 @@ public sealed class CustomerClient : ICustomerClient
     /// </summary>
     public async Task<Customer> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Customer>($"api/v1/customers/{id}", _tenantId, ct);
+        return await _http.GetAsync<Customer>($"api/v1/customers/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public sealed class CustomerClient : ICustomerClient
     /// </summary>
     public async Task<Customer360> Get360Async(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Customer360>($"api/v1/customers/{id}/360", _tenantId, ct);
+        return await _http.GetAsync<Customer360>($"api/v1/customers/{QueryBuilder.PathEncode(id)}/360", _tenantId, ct);
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public sealed class CustomerClient : ICustomerClient
     /// </summary>
     public async Task<Customer> UpdateAsync(string id, UpdateCustomerRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Customer>($"api/v1/customers/{id}", request, _tenantId, ct);
+        return await _http.PatchAsync<Customer>($"api/v1/customers/{QueryBuilder.PathEncode(id)}", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public sealed class CustomerClient : ICustomerClient
     /// </summary>
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/customers/{id}", _tenantId, ct);
+        await _http.DeleteAsync($"api/v1/customers/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -112,6 +112,6 @@ public sealed class CustomerClient : ICustomerClient
     /// </summary>
     public async Task<List<Site>> ListSitesAsync(string customerId, CancellationToken ct = default)
     {
-        return await _http.GetAsync<List<Site>>($"api/v1/customers/{customerId}/sites", _tenantId, ct);
+        return await _http.GetAsync<List<Site>>($"api/v1/customers/{QueryBuilder.PathEncode(customerId)}/sites", _tenantId, ct);
     }
 }

@@ -27,7 +27,7 @@ public sealed class OrderClient : IOrderClient
     /// </summary>
     public async Task<OrderTracking> GetStatusAsync(string orderId, CancellationToken ct = default)
     {
-        return await _http.GetAsync<OrderTracking>($"api/v1/orders/{orderId}/status", _tenantId, ct);
+        return await _http.GetAsync<OrderTracking>($"api/v1/orders/{QueryBuilder.PathEncode(orderId)}/status", _tenantId, ct);
     }
 
     /// <summary>
@@ -35,7 +35,7 @@ public sealed class OrderClient : IOrderClient
     /// </summary>
     public async Task RequestPickupAsync(string orderId, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/orders/{orderId}/request-pickup", null, _tenantId, ct);
+        await _http.PostAsync($"api/v1/orders/{QueryBuilder.PathEncode(orderId)}/request-pickup", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -63,7 +63,7 @@ public sealed class OrderClient : IOrderClient
         CancellationToken ct = default)
     {
         return await _http.PostAsync<SettlementResult>(
-            $"api/v1/storefronts/settlements/{orderId}/settle",
+            $"api/v1/storefronts/settlements/{QueryBuilder.PathEncode(orderId)}/settle",
             request ?? new(),
             _tenantId,
             ct);

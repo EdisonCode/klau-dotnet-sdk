@@ -61,7 +61,7 @@ public sealed class ProposalClient : IProposalClient
     /// </summary>
     public async Task RemindAsync(string proposalId, RemindRequest? request = null, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/proposals/{proposalId}/remind", request ?? new RemindRequest(), _tenantId, ct);
+        await _http.PostAsync($"api/v1/proposals/{QueryBuilder.PathEncode(proposalId)}/remind", request ?? new RemindRequest(), _tenantId, ct);
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ public sealed class ProposalClient : IProposalClient
     /// </summary>
     public async Task UpdateOfferAsync(string proposalId, UpdateOfferRequest request, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/proposals/{proposalId}/update-offer", request, _tenantId, ct);
+        await _http.PostAsync($"api/v1/proposals/{QueryBuilder.PathEncode(proposalId)}/update-offer", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -77,7 +77,7 @@ public sealed class ProposalClient : IProposalClient
     /// </summary>
     public async Task ExpireAsync(string proposalId, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/proposals/{proposalId}/expire", null, _tenantId, ct);
+        await _http.PostAsync($"api/v1/proposals/{QueryBuilder.PathEncode(proposalId)}/expire", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -127,7 +127,7 @@ public sealed class ProposalClient : IProposalClient
         CancellationToken ct = default)
     {
         await _http.PostAsync(
-            $"api/v1/proposals/{proposalId}/dismiss-recommendation",
+            $"api/v1/proposals/{QueryBuilder.PathEncode(proposalId)}/dismiss-recommendation",
             new { type },
             _tenantId,
             ct);

@@ -29,7 +29,8 @@ public sealed class DispatchClient : IDispatchClient
     /// </summary>
     public async Task<DispatchBoard> GetBoardAsync(string date, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DispatchBoard>($"api/v1/dispatches/board?date={date}", _tenantId, ct);
+        var path = QueryBuilder.Build("api/v1/dispatches/board", ("date", date));
+        return await _http.GetAsync<DispatchBoard>(path, _tenantId, ct);
     }
 
     /// <summary>
@@ -49,7 +50,7 @@ public sealed class DispatchClient : IDispatchClient
         string jobId,
         CancellationToken ct = default)
     {
-        return await _http.GetAsync<OptimizationJob>($"api/v1/dispatches/optimize/{jobId}", _tenantId, ct);
+        return await _http.GetAsync<OptimizationJob>($"api/v1/dispatches/optimize/{QueryBuilder.PathEncode(jobId)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -86,7 +87,7 @@ public sealed class DispatchClient : IDispatchClient
     /// </summary>
     public async Task ReorderAsync(string dispatchId, ReorderRequest request, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/dispatches/{dispatchId}/reorder", request, _tenantId, ct);
+        await _http.PostAsync($"api/v1/dispatches/{QueryBuilder.PathEncode(dispatchId)}/reorder", request, _tenantId, ct);
     }
 
     /// <summary>

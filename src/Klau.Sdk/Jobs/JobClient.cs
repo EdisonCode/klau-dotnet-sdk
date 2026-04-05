@@ -82,7 +82,7 @@ public sealed class JobClient : IJobClient
     /// </summary>
     public async Task<Job> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Job>($"api/v1/jobs/{id}", _tenantId, ct);
+        return await _http.GetAsync<Job>($"api/v1/jobs/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public sealed class JobClient : IJobClient
     /// </summary>
     public async Task<Job> UpdateAsync(string id, UpdateJobRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Job>($"api/v1/jobs/{id}", request, _tenantId, ct);
+        return await _http.PatchAsync<Job>($"api/v1/jobs/{QueryBuilder.PathEncode(id)}", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -141,7 +141,7 @@ public sealed class JobClient : IJobClient
     /// </summary>
     public async Task<AssignJobResult> AssignAsync(string id, AssignJobRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<AssignJobResult>($"api/v1/jobs/{id}/assign", request, _tenantId, ct);
+        return await _http.PostAsync<AssignJobResult>($"api/v1/jobs/{QueryBuilder.PathEncode(id)}/assign", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -149,7 +149,7 @@ public sealed class JobClient : IJobClient
     /// </summary>
     public async Task<UnassignJobResult> UnassignAsync(string id, CancellationToken ct = default)
     {
-        return await _http.PostAsync<UnassignJobResult>($"api/v1/jobs/{id}/unassign", null, _tenantId, ct);
+        return await _http.PostAsync<UnassignJobResult>($"api/v1/jobs/{QueryBuilder.PathEncode(id)}/unassign", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -157,7 +157,7 @@ public sealed class JobClient : IJobClient
     /// </summary>
     public async Task CancelAsync(string id, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/jobs/{id}/cancel", null, _tenantId, ct);
+        await _http.PostAsync($"api/v1/jobs/{QueryBuilder.PathEncode(id)}/cancel", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -165,7 +165,7 @@ public sealed class JobClient : IJobClient
     /// </summary>
     public async Task StartAsync(string id, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/jobs/{id}/start", null, _tenantId, ct);
+        await _http.PostAsync($"api/v1/jobs/{QueryBuilder.PathEncode(id)}/start", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -173,7 +173,7 @@ public sealed class JobClient : IJobClient
     /// </summary>
     public async Task CompleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.PostAsync($"api/v1/jobs/{id}/complete", null, _tenantId, ct);
+        await _http.PostAsync($"api/v1/jobs/{QueryBuilder.PathEncode(id)}/complete", null, _tenantId, ct);
     }
 
     /// <summary>
@@ -181,7 +181,7 @@ public sealed class JobClient : IJobClient
     /// </summary>
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/jobs/{id}", _tenantId, ct);
+        await _http.DeleteAsync($"api/v1/jobs/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>

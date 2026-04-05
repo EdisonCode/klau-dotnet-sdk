@@ -33,7 +33,7 @@ public sealed class DivisionClient : IDivisionClient
     /// </summary>
     public async Task<DivisionDetail> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DivisionDetail>($"api/v1/divisions/{id}", tenantOverride: null, ct);
+        return await _http.GetAsync<DivisionDetail>($"api/v1/divisions/{QueryBuilder.PathEncode(id)}", tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ public sealed class DivisionClient : IDivisionClient
     /// </summary>
     public async Task<Division> UpdateAsync(string id, UpdateDivisionRequest request, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<Division>($"api/v1/divisions/{id}", request, tenantOverride: null, ct);
+        return await _http.PatchAsync<Division>($"api/v1/divisions/{QueryBuilder.PathEncode(id)}", request, tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public sealed class DivisionClient : IDivisionClient
     /// </summary>
     public async Task<DivisionUsage> GetUsageAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DivisionUsage>($"api/v1/divisions/{id}/usage", tenantOverride: null, ct);
+        return await _http.GetAsync<DivisionUsage>($"api/v1/divisions/{QueryBuilder.PathEncode(id)}/usage", tenantOverride: null, ct);
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public sealed class DivisionClient : IDivisionClient
     /// </summary>
     public async Task<Invitation> InviteUserAsync(string id, InviteUserRequest request, CancellationToken ct = default)
     {
-        return await _http.PostAsync<Invitation>($"api/v1/divisions/{id}/invite", request, tenantOverride: null, ct);
+        return await _http.PostAsync<Invitation>($"api/v1/divisions/{QueryBuilder.PathEncode(id)}/invite", request, tenantOverride: null, ct);
     }
 
     /// <summary>

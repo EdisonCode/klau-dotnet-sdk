@@ -86,7 +86,7 @@ public sealed class DumpTicketClient : IDumpTicketClient
     /// </summary>
     public async Task<DumpTicket> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DumpTicket>($"api/v1/dump-tickets/{id}", _tenantId, ct);
+        return await _http.GetAsync<DumpTicket>($"api/v1/dump-tickets/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -94,7 +94,7 @@ public sealed class DumpTicketClient : IDumpTicketClient
     /// </summary>
     public async Task<DumpTicket> VerifyAsync(string id, VerifyDumpTicketRequest? request = null, CancellationToken ct = default)
     {
-        return await _http.PatchAsync<DumpTicket>($"api/v1/dump-tickets/{id}/verify", request ?? new(), _tenantId, ct);
+        return await _http.PatchAsync<DumpTicket>($"api/v1/dump-tickets/{QueryBuilder.PathEncode(id)}/verify", request ?? new(), _tenantId, ct);
     }
 
     /// <summary>
@@ -102,6 +102,6 @@ public sealed class DumpTicketClient : IDumpTicketClient
     /// </summary>
     public async Task<DumpTicket> GetForJobAsync(string jobId, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DumpTicket>($"api/v1/jobs/{jobId}/dump-ticket", _tenantId, ct);
+        return await _http.GetAsync<DumpTicket>($"api/v1/jobs/{QueryBuilder.PathEncode(jobId)}/dump-ticket", _tenantId, ct);
     }
 }

@@ -57,7 +57,7 @@ public sealed class YardClient : IYardClient
 
     public async Task<Yard> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<Yard>($"api/v1/yards/{id}", _tenantId, ct);
+        return await _http.GetAsync<Yard>($"api/v1/yards/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -71,11 +71,11 @@ public sealed class YardClient : IYardClient
 
     public async Task UpdateAsync(string id, UpdateYardRequest request, CancellationToken ct = default)
     {
-        await _http.PatchAsync<SuccessResponse>($"api/v1/yards/{id}", request, _tenantId, ct);
+        await _http.PatchAsync<SuccessResponse>($"api/v1/yards/{QueryBuilder.PathEncode(id)}", request, _tenantId, ct);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/yards/{id}", _tenantId, ct);
+        await _http.DeleteAsync($"api/v1/yards/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 }

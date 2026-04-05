@@ -63,7 +63,7 @@ public sealed class DumpSiteClient : IDumpSiteClient
 
     public async Task<DumpSite> GetAsync(string id, CancellationToken ct = default)
     {
-        return await _http.GetAsync<DumpSite>($"api/v1/dump-sites/{id}", _tenantId, ct);
+        return await _http.GetAsync<DumpSite>($"api/v1/dump-sites/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     /// <summary>
@@ -77,12 +77,12 @@ public sealed class DumpSiteClient : IDumpSiteClient
 
     public async Task UpdateAsync(string id, UpdateDumpSiteRequest request, CancellationToken ct = default)
     {
-        await _http.PatchAsync<SuccessResponse>($"api/v1/dump-sites/{id}", request, _tenantId, ct);
+        await _http.PatchAsync<SuccessResponse>($"api/v1/dump-sites/{QueryBuilder.PathEncode(id)}", request, _tenantId, ct);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/dump-sites/{id}", _tenantId, ct);
+        await _http.DeleteAsync($"api/v1/dump-sites/{QueryBuilder.PathEncode(id)}", _tenantId, ct);
     }
 
     // --- Material Pricing ---
@@ -94,7 +94,7 @@ public sealed class DumpSiteClient : IDumpSiteClient
         string dumpSiteId, CancellationToken ct = default)
     {
         return await _http.GetAsync<IReadOnlyList<MaterialPricing>>(
-            $"api/v1/dump-sites/{dumpSiteId}/material-pricing", _tenantId, ct);
+            $"api/v1/dump-sites/{QueryBuilder.PathEncode(dumpSiteId)}/material-pricing", _tenantId, ct);
     }
 
     /// <summary>
@@ -105,7 +105,7 @@ public sealed class DumpSiteClient : IDumpSiteClient
         string dumpSiteId, AddMaterialPricingRequest request, CancellationToken ct = default)
     {
         return await _http.PostAsync<MaterialPricing>(
-            $"api/v1/dump-sites/{dumpSiteId}/material-pricing", request, _tenantId, ct);
+            $"api/v1/dump-sites/{QueryBuilder.PathEncode(dumpSiteId)}/material-pricing", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ public sealed class DumpSiteClient : IDumpSiteClient
         string dumpSiteId, string materialId, UpdateMaterialPricingRequest request, CancellationToken ct = default)
     {
         return await _http.PatchAsync<MaterialPricing>(
-            $"api/v1/dump-sites/{dumpSiteId}/material-pricing/{materialId}", request, _tenantId, ct);
+            $"api/v1/dump-sites/{QueryBuilder.PathEncode(dumpSiteId)}/material-pricing/{QueryBuilder.PathEncode(materialId)}", request, _tenantId, ct);
     }
 
     /// <summary>
@@ -124,6 +124,6 @@ public sealed class DumpSiteClient : IDumpSiteClient
     public async Task RemoveMaterialPricingAsync(
         string dumpSiteId, string materialId, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/dump-sites/{dumpSiteId}/material-pricing/{materialId}", _tenantId, ct);
+        await _http.DeleteAsync($"api/v1/dump-sites/{QueryBuilder.PathEncode(dumpSiteId)}/material-pricing/{QueryBuilder.PathEncode(materialId)}", _tenantId, ct);
     }
 }

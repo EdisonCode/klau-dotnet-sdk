@@ -46,7 +46,7 @@ public sealed class WebhookClient : IWebhookClient
     /// </summary>
     public async Task SetEnabledAsync(string webhookId, bool enabled, CancellationToken ct = default)
     {
-        await _http.PatchAsync<object>($"api/v1/settings/developer/webhooks/{webhookId}", new { enabled }, ct: ct);
+        await _http.PatchAsync<object>($"api/v1/settings/developer/webhooks/{QueryBuilder.PathEncode(webhookId)}", new { enabled }, ct: ct);
     }
 
     /// <summary>
@@ -54,7 +54,7 @@ public sealed class WebhookClient : IWebhookClient
     /// </summary>
     public async Task DeleteAsync(string webhookId, CancellationToken ct = default)
     {
-        await _http.DeleteAsync($"api/v1/settings/developer/webhooks/{webhookId}", ct: ct);
+        await _http.DeleteAsync($"api/v1/settings/developer/webhooks/{QueryBuilder.PathEncode(webhookId)}", ct: ct);
     }
 
     /// <summary>
@@ -63,6 +63,6 @@ public sealed class WebhookClient : IWebhookClient
     public async Task<WebhookTestResult> TestAsync(string webhookId, CancellationToken ct = default)
     {
         return await _http.PostAsync<WebhookTestResult>(
-            $"api/v1/settings/developer/webhooks/{webhookId}/test", ct: ct);
+            $"api/v1/settings/developer/webhooks/{QueryBuilder.PathEncode(webhookId)}/test", ct: ct);
     }
 }
