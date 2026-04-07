@@ -106,3 +106,28 @@ public enum ContainerSlot
     PRIMARY,
     SECONDARY
 }
+
+/// <summary>
+/// Processing status for an async import batch.
+/// Flow: ACCEPTED → PROCESSING → COMPLETED | PARTIAL_FAILURE | FAILED
+/// </summary>
+public enum ImportBatchStatus
+{
+    ACCEPTED,
+    PROCESSING,
+    COMPLETED,
+    PARTIAL_FAILURE,
+    FAILED
+}
+
+/// <summary>
+/// Drive-time cache warm-up status for an async import batch.
+/// Flow: NOT_STARTED → WARMING → READY (or NOT_APPLICABLE if no new sites)
+/// </summary>
+public enum DriveTimeCacheStatus
+{
+    NOT_STARTED,
+    WARMING,
+    READY,
+    NOT_APPLICABLE
+}

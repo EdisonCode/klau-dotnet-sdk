@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Klau.Sdk.Common;
 using Klau.Sdk.Import;
 using Klau.Sdk.Tests.Helpers;
 
@@ -693,5 +694,682 @@ public class ImportClientTests
         var req = Assert.Single(handler.SentRequests);
         Assert.True(req.Headers.Contains("Klau-Tenant-Id"));
         Assert.Equal("tenant-456", req.Headers.GetValues("Klau-Tenant-Id").First());
+    }
+
+    // --- SubmitJobsAsync ---
+
+    [Fact]
+    public async Task SubmitJobsAsync_SendsPostToAsyncPath()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-async-1",
+            jobCount = 3,
+            status = "ACCEPTED"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" },
+                new ImportJobRecord { CustomerName = "B", SiteName = "S2", SiteAddress = "2 St", JobType = "PICKUP", ContainerSize = "30" },
+                new ImportJobRecord { CustomerName = "C", SiteName = "S3", SiteAddress = "3 St", JobType = "SWAP", ContainerSize = "40" }
+            ]
+        };
+
+        var result = await client.Import.SubmitJobsAsync(request);
+
+        var req = Assert.Single(handler.SentRequests);
+        Assert.Equal(HttpMethod.Post, req.Method);
+        Assert.EndsWith("api/v1/import/jobs/async", req.RequestUri!.AbsolutePath);
+        Assert.Equal("batch-async-1", result.BatchId);
+        Assert.Equal(3, result.JobCount);
+        Assert.Equal(ImportBatchStatus.ACCEPTED, result.Status);
+    }
+
+    [Fact]
+    public async Task SubmitJobsAsync_SerializesRequestBody()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-body",
+            jobCount = 1,
+            status = "ACCEPTED"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord
+                {
+                    CustomerName = "Acme Corp",
+                    SiteName = "HQ",
+                    SiteAddress = "100 Main St",
+                    SiteCity = "Portland",
+                    SiteState = "OR",
+                    SiteZip = "97201",
+                    JobType = "DELIVERY",
+                    ContainerSize = "20",
+                    TimeWindow = "MORNING",
+                    Priority = "HIGH",
+                    Notes = "Ring bell",
+                    RequestedDate = "2026-04-10",
+                    ExternalId = "ERP-001"
+                }
+            ],
+            CreateMissing = false
+        };
+
+        await client.Import.SubmitJobsAsync(request);
+
+        var body = handler.SentBodies[0]!;
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+        Assert.False(root.GetProperty("createMissing").GetBoolean());
+
+        var job = root.GetProperty("jobs")[0];
+        Assert.Equal("Acme Corp", job.GetProperty("customerName").GetString());
+        Assert.Equal("HQ", job.GetProperty("siteName").GetString());
+        Assert.Equal("100 Main St", job.GetProperty("siteAddress").GetString());
+        Assert.Equal("Portland", job.GetProperty("siteCity").GetString());
+        Assert.Equal("OR", job.GetProperty("siteState").GetString());
+        Assert.Equal("97201", job.GetProperty("siteZip").GetString());
+        Assert.Equal("DELIVERY", job.GetProperty("jobType").GetString());
+        Assert.Equal("20", job.GetProperty("containerSize").GetString());
+        Assert.Equal("MORNING", job.GetProperty("timeWindow").GetString());
+        Assert.Equal("HIGH", job.GetProperty("priority").GetString());
+        Assert.Equal("Ring bell", job.GetProperty("notes").GetString());
+        Assert.Equal("2026-04-10", job.GetProperty("requestedDate").GetString());
+        Assert.Equal("ERP-001", job.GetProperty("externalId").GetString());
+    }
+
+    // --- GetBatchStatusAsync ---
+
+    [Fact]
+    public async Task GetBatchStatusAsync_SendsGetToCorrectPath()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-s1",
+            status = "PROCESSING",
+            total = 10,
+            processed = 4,
+            imported = 3,
+            skipped = 1,
+            customersCreated = 1,
+            sitesCreated = 2,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "NOT_STARTED"
+        });
+
+        await client.Import.GetBatchStatusAsync("batch-s1");
+
+        var req = Assert.Single(handler.SentRequests);
+        Assert.Equal(HttpMethod.Get, req.Method);
+        Assert.EndsWith("api/v1/import/batches/batch-s1/status", req.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task GetBatchStatusAsync_DeserializesProcessingResponse()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-p",
+            status = "PROCESSING",
+            total = 100,
+            processed = 42,
+            imported = 40,
+            skipped = 2,
+            customersCreated = 5,
+            sitesCreated = 8,
+            errors = new[] { new { row = 3, field = "containerSize", message = "Invalid size" } },
+            driveTimeCacheStatus = "NOT_STARTED"
+        });
+
+        var result = await client.Import.GetBatchStatusAsync("batch-p");
+
+        Assert.Equal("batch-p", result.BatchId);
+        Assert.Equal(ImportBatchStatus.PROCESSING, result.Status);
+        Assert.Equal(100, result.Total);
+        Assert.Equal(42, result.Processed);
+        Assert.Equal(40, result.Imported);
+        Assert.Equal(2, result.Skipped);
+        Assert.Equal(5, result.CustomersCreated);
+        Assert.Equal(8, result.SitesCreated);
+        Assert.Single(result.Errors);
+        Assert.Equal(3, result.Errors[0].Row);
+        Assert.Equal(DriveTimeCacheStatus.NOT_STARTED, result.DriveTimeCacheStatus);
+        Assert.False(result.IsTerminal);
+        Assert.False(result.IsReadyForOptimization);
+    }
+
+    [Fact]
+    public async Task GetBatchStatusAsync_DeserializesCompletedResponse()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-c",
+            status = "COMPLETED",
+            total = 50,
+            processed = 50,
+            imported = 50,
+            skipped = 0,
+            customersCreated = 3,
+            sitesCreated = 10,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "READY"
+        });
+
+        var result = await client.Import.GetBatchStatusAsync("batch-c");
+
+        Assert.Equal(ImportBatchStatus.COMPLETED, result.Status);
+        Assert.Equal(DriveTimeCacheStatus.READY, result.DriveTimeCacheStatus);
+        Assert.True(result.IsTerminal);
+        Assert.True(result.IsReadyForOptimization);
+    }
+
+    [Fact]
+    public async Task GetBatchStatusAsync_PartialFailureIsTerminal()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-pf",
+            status = "PARTIAL_FAILURE",
+            total = 10,
+            processed = 10,
+            imported = 7,
+            skipped = 3,
+            customersCreated = 0,
+            sitesCreated = 0,
+            errors = new[]
+            {
+                new { row = 2, field = "customerName", message = "Required" },
+                new { row = 5, field = "jobType", message = "Invalid type" },
+                new { row = 9, field = "externalId", message = "Duplicate" }
+            },
+            driveTimeCacheStatus = "NOT_APPLICABLE"
+        });
+
+        var result = await client.Import.GetBatchStatusAsync("batch-pf");
+
+        Assert.Equal(ImportBatchStatus.PARTIAL_FAILURE, result.Status);
+        Assert.True(result.IsTerminal);
+        Assert.True(result.IsReadyForOptimization);
+        Assert.Equal(3, result.Errors.Count);
+    }
+
+    [Fact]
+    public async Task GetBatchStatusAsync_CompletedButCacheWarmingNotReady()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-w",
+            status = "COMPLETED",
+            total = 5,
+            processed = 5,
+            imported = 5,
+            skipped = 0,
+            customersCreated = 2,
+            sitesCreated = 3,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "WARMING"
+        });
+
+        var result = await client.Import.GetBatchStatusAsync("batch-w");
+
+        Assert.True(result.IsTerminal);
+        Assert.False(result.IsReadyForOptimization);
+    }
+
+    // --- SubmitAndWaitAsync ---
+
+    [Fact]
+    public async Task SubmitAndWaitAsync_PollsUntilReadyForOptimization()
+    {
+        var (client, handler) = CreateClient();
+
+        // 1. Submit response
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-sw",
+            jobCount = 5,
+            status = "ACCEPTED"
+        });
+
+        // 2. First poll — processing, cache not started
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-sw",
+            status = "PROCESSING",
+            total = 5, processed = 2, imported = 2, skipped = 0,
+            customersCreated = 1, sitesCreated = 1,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "NOT_STARTED"
+        });
+
+        // 3. Second poll — completed, cache warming
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-sw",
+            status = "COMPLETED",
+            total = 5, processed = 5, imported = 5, skipped = 0,
+            customersCreated = 1, sitesCreated = 2,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "WARMING"
+        });
+
+        // 4. Third poll — completed, cache ready
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-sw",
+            status = "COMPLETED",
+            total = 5, processed = 5, imported = 5, skipped = 0,
+            customersCreated = 1, sitesCreated = 2,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "READY"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S1", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        var result = await client.Import.SubmitAndWaitAsync(request, pollInterval: TimeSpan.FromMilliseconds(10));
+
+        Assert.Equal(ImportBatchStatus.COMPLETED, result.Status);
+        Assert.Equal(DriveTimeCacheStatus.READY, result.DriveTimeCacheStatus);
+        Assert.True(result.IsReadyForOptimization);
+        Assert.Equal(4, handler.SentRequests.Count); // submit + 3 polls
+        Assert.EndsWith("api/v1/import/jobs/async", handler.SentRequests[0].RequestUri!.AbsolutePath);
+        Assert.EndsWith("api/v1/import/batches/batch-sw/status", handler.SentRequests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task SubmitAndWaitAsync_ReturnsImmediatelyWhenAlreadyReady()
+    {
+        var (client, handler) = CreateClient();
+
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-fast",
+            jobCount = 2,
+            status = "ACCEPTED"
+        });
+
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-fast",
+            status = "COMPLETED",
+            total = 2, processed = 2, imported = 2, skipped = 0,
+            customersCreated = 0, sitesCreated = 0,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "NOT_APPLICABLE"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        var result = await client.Import.SubmitAndWaitAsync(request, pollInterval: TimeSpan.FromMilliseconds(10));
+
+        Assert.True(result.IsReadyForOptimization);
+        Assert.Equal(2, handler.SentRequests.Count); // submit + 1 poll
+    }
+
+    [Fact]
+    public async Task SubmitAndWaitAsync_ThrowsOnTimeout()
+    {
+        var (client, handler) = CreateClient();
+
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-slow-async",
+            jobCount = 100,
+            status = "ACCEPTED"
+        });
+
+        for (var i = 0; i < 20; i++)
+        {
+            handler.EnqueueResponse(HttpStatusCode.OK, new
+            {
+                batchId = "batch-slow-async",
+                status = "PROCESSING",
+                total = 100, processed = 10, imported = 10, skipped = 0,
+                customersCreated = 0, sitesCreated = 0,
+                errors = Array.Empty<object>(),
+                driveTimeCacheStatus = "NOT_STARTED"
+            });
+        }
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        var ex = await Assert.ThrowsAsync<TimeoutException>(() =>
+            client.Import.SubmitAndWaitAsync(
+                request,
+                timeout: TimeSpan.FromMilliseconds(100),
+                pollInterval: TimeSpan.FromMilliseconds(10)));
+
+        Assert.Contains("batch-slow-async", ex.Message);
+    }
+
+    // --- Async import - TenantScope ---
+
+    [Fact]
+    public async Task SubmitJobsAsync_TenantScope_SendsTenantHeader()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-t-async",
+            jobCount = 1,
+            status = "ACCEPTED"
+        });
+
+        var scope = client.ForTenant("tenant-789");
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        await scope.Import.SubmitJobsAsync(request);
+
+        var req = Assert.Single(handler.SentRequests);
+        Assert.True(req.Headers.Contains("Klau-Tenant-Id"));
+        Assert.Equal("tenant-789", req.Headers.GetValues("Klau-Tenant-Id").First());
+    }
+
+    [Fact]
+    public async Task GetBatchStatusAsync_TenantScope_SendsTenantHeader()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-t-status",
+            status = "COMPLETED",
+            total = 1, processed = 1, imported = 1, skipped = 0,
+            customersCreated = 0, sitesCreated = 0,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "NOT_APPLICABLE"
+        });
+
+        var scope = client.ForTenant("tenant-abc");
+        await scope.Import.GetBatchStatusAsync("batch-t-status");
+
+        var req = Assert.Single(handler.SentRequests);
+        Assert.True(req.Headers.Contains("Klau-Tenant-Id"));
+        Assert.Equal("tenant-abc", req.Headers.GetValues("Klau-Tenant-Id").First());
+    }
+
+    // --- SubmitAndWaitAsync - failure modes ---
+
+    [Fact]
+    public async Task SubmitAndWaitAsync_ReturnsImmediatelyOnFailedBatch()
+    {
+        var (client, handler) = CreateClient();
+
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-fail",
+            jobCount = 5,
+            status = "ACCEPTED"
+        });
+
+        // First poll returns FAILED with cache NOT_STARTED
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-fail",
+            status = "FAILED",
+            total = 5, processed = 5, imported = 0, skipped = 5,
+            customersCreated = 0, sitesCreated = 0,
+            errors = new[]
+            {
+                new { row = 1, field = "jobType", message = "Invalid job type" }
+            },
+            driveTimeCacheStatus = "NOT_STARTED"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "INVALID", ContainerSize = "20" }
+            ]
+        };
+
+        var result = await client.Import.SubmitAndWaitAsync(request, pollInterval: TimeSpan.FromMilliseconds(10));
+
+        // Returns immediately — does not hang for 120s
+        Assert.Equal(ImportBatchStatus.FAILED, result.Status);
+        Assert.True(result.IsTerminal);
+        Assert.False(result.IsReadyForOptimization);
+        Assert.Single(result.Errors);
+        Assert.Equal(2, handler.SentRequests.Count); // submit + 1 poll (no more)
+    }
+
+    [Fact]
+    public async Task SubmitAndWaitAsync_ReturnsOnPartialFailureWithCacheNotApplicable()
+    {
+        var (client, handler) = CreateClient();
+
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-pf-na",
+            jobCount = 3,
+            status = "ACCEPTED"
+        });
+
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-pf-na",
+            status = "PARTIAL_FAILURE",
+            total = 3, processed = 3, imported = 1, skipped = 2,
+            customersCreated = 0, sitesCreated = 0,
+            errors = new[]
+            {
+                new { row = 2, field = "containerSize", message = "Invalid" },
+                new { row = 3, field = "customerName", message = "Required" }
+            },
+            driveTimeCacheStatus = "NOT_APPLICABLE"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        var result = await client.Import.SubmitAndWaitAsync(request, pollInterval: TimeSpan.FromMilliseconds(10));
+
+        // PARTIAL_FAILURE + NOT_APPLICABLE exits via IsReadyForOptimization
+        Assert.Equal(ImportBatchStatus.PARTIAL_FAILURE, result.Status);
+        Assert.True(result.IsReadyForOptimization);
+    }
+
+    [Fact]
+    public async Task SubmitAndWaitAsync_PollingError_ThrowsKlauImportExceptionWithBatchId()
+    {
+        var (client, handler) = CreateClient();
+
+        // Submit succeeds
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-err",
+            jobCount = 1,
+            status = "ACCEPTED"
+        });
+
+        // First poll returns 500
+        handler.EnqueueResponse(HttpStatusCode.InternalServerError,
+            new ApiErrorBody("INTERNAL_ERROR", "Something went wrong"));
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        var ex = await Assert.ThrowsAsync<KlauImportException>(() =>
+            client.Import.SubmitAndWaitAsync(
+                request,
+                pollInterval: TimeSpan.FromMilliseconds(10)));
+
+        Assert.Equal("batch-err", ex.BatchId);
+        Assert.Null(ex.LastStatus); // failed on first poll
+        Assert.Contains("batch-err", ex.Message);
+        Assert.IsType<KlauApiException>(ex.InnerException);
+    }
+
+    [Fact]
+    public async Task SubmitAndWaitAsync_PollingError_PreservesLastStatus()
+    {
+        var (client, handler) = CreateClient();
+
+        // Submit succeeds
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-err2",
+            jobCount = 5,
+            status = "ACCEPTED"
+        });
+
+        // First poll succeeds (PROCESSING)
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-err2",
+            status = "PROCESSING",
+            total = 5, processed = 2, imported = 2, skipped = 0,
+            customersCreated = 1, sitesCreated = 1,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "NOT_STARTED"
+        });
+
+        // Second poll returns 500
+        handler.EnqueueResponse(HttpStatusCode.InternalServerError,
+            new ApiErrorBody("INTERNAL_ERROR", "Transient failure"));
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        var ex = await Assert.ThrowsAsync<KlauImportException>(() =>
+            client.Import.SubmitAndWaitAsync(
+                request,
+                pollInterval: TimeSpan.FromMilliseconds(10)));
+
+        Assert.Equal("batch-err2", ex.BatchId);
+        Assert.NotNull(ex.LastStatus);
+        Assert.Equal(ImportBatchStatus.PROCESSING, ex.LastStatus!.Status);
+        Assert.Equal(2, ex.LastStatus.Processed);
+    }
+
+    [Fact]
+    public async Task SubmitAndWaitAsync_CancellationToken_ExitsPromptly()
+    {
+        var (client, handler) = CreateClient();
+
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-cancel",
+            jobCount = 1,
+            status = "ACCEPTED"
+        });
+
+        // Enqueue many PROCESSING responses (we should never reach them all)
+        for (var i = 0; i < 50; i++)
+        {
+            handler.EnqueueResponse(HttpStatusCode.OK, new
+            {
+                batchId = "batch-cancel",
+                status = "PROCESSING",
+                total = 1, processed = 0, imported = 0, skipped = 0,
+                customersCreated = 0, sitesCreated = 0,
+                errors = Array.Empty<object>(),
+                driveTimeCacheStatus = "NOT_STARTED"
+            });
+        }
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.Import.SubmitAndWaitAsync(
+                request,
+                timeout: TimeSpan.FromSeconds(60),
+                pollInterval: TimeSpan.FromMilliseconds(10),
+                ct: cts.Token));
+
+        // Should have exited well before consuming all 50 responses
+        Assert.True(handler.SentRequests.Count < 50);
+    }
+
+    // --- SubmitJobsAsync - KlauRequestOptions ---
+
+    [Fact]
+    public async Task SubmitJobsAsync_WithIdempotencyKey_SendsHeader()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-idem",
+            jobCount = 1,
+            status = "ACCEPTED"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord { CustomerName = "A", SiteName = "S", SiteAddress = "1 St", JobType = "DELIVERY", ContainerSize = "20" }
+            ]
+        };
+
+        await client.Import.SubmitJobsAsync(request, new KlauRequestOptions
+        {
+            IdempotencyKey = "erp-batch-2026-04-06"
+        });
+
+        var req = Assert.Single(handler.SentRequests);
+        Assert.True(req.Headers.Contains("Idempotency-Key"));
+        Assert.Equal("erp-batch-2026-04-06", req.Headers.GetValues("Idempotency-Key").First());
     }
 }

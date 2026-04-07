@@ -32,10 +32,25 @@ Most integrations follow the same pattern: push work orders from your backend in
 
 ### Step 1: Push jobs into Klau
 
-The **Import API** is the recommended way to push jobs. It resolves customers and sites by name, auto-creates missing records, and waits for drive-time cache warm-up so optimization uses accurate truck routing times. Use `ExternalId` on every job to correlate Klau records with your system's IDs — this is the key to reliable two-way sync.
+**You don't need to pre-create customers or sites.** The Import API resolves customers and sites by name, auto-creates any that don't exist, and handles geocoding and drive-time caching in the background. Just push your work orders with names and addresses — Klau figures out the rest.
+
+Use `ExternalId` on every job to correlate Klau records with your system's IDs — this is the key to reliable two-way sync.
+
+#### Choosing the right method
+
+| Method | Best for | Limit | Pre-created IDs needed? |
+|--------|----------|-------|------------------------|
+| `SubmitAndWaitAsync` | Production syncs, large batches | 1,000 jobs | No — uses names/addresses |
+| `ImportAndWaitAsync` | Small batches, quick scripts | ~100 jobs | No — uses names/addresses |
+| `Jobs.CreateBatchAsync` | When you already have Klau IDs | 100 jobs | Yes — requires `CustomerId` + `SiteId` |
+| `Jobs.CreateAsync` | Single job creation | 1 job | Yes — requires `CustomerId` + `SiteId` |
+
+#### Async import (recommended)
+
+`SubmitAndWaitAsync` is the recommended path for production integrations. It accepts up to 1,000 jobs, returns immediately (no geocoding in the request path), processes everything in the background, and waits until the batch is fully processed and the drive-time cache is warm:
 
 ```csharp
-var import = await klau.Import.ImportAndWaitAsync(new ImportJobsRequest
+var batch = await klau.Import.SubmitAndWaitAsync(new ImportJobsRequest
 {
     Jobs =
     [
@@ -67,30 +82,57 @@ var import = await klau.Import.ImportAndWaitAsync(new ImportJobsRequest
     ]
 });
 
-Console.WriteLine($"Imported: {import.Imported}, Created: {import.CustomersCreated} customers, {import.SitesCreated} sites");
+Console.WriteLine($"Imported: {batch.Imported}, Skipped: {batch.Skipped}");
+Console.WriteLine($"Created: {batch.CustomersCreated} customers, {batch.SitesCreated} sites");
 
 // Drive-time cache is warm — safe to optimize now
 ```
 
-`ImportAndWaitAsync` chains three steps: import jobs, poll the batch readiness endpoint until the drive-time cache is warm for any new sites, then return. If you need more control, call `JobsAsync` and `GetReadinessAsync` separately:
+For more control over polling, call `SubmitJobsAsync` and `GetBatchStatusAsync` separately:
 
 ```csharp
-var result = await klau.Import.JobsAsync(request);
+var submit = await klau.Import.SubmitJobsAsync(request);
+Console.WriteLine($"Batch {submit.BatchId}: {submit.JobCount} jobs queued");
 
-if (result.BatchId is not null)
+AsyncImportBatchStatus status;
+do
 {
-    BatchReadiness readiness;
-    do
-    {
-        await Task.Delay(2000);
-        readiness = await klau.Import.GetReadinessAsync(result.BatchId);
-        Console.WriteLine($"Cache: {readiness.SitesCached}/{readiness.SitesTotal} sites ready");
-    }
-    while (readiness.Status is "warming" or "partial");
+    await Task.Delay(2000);
+    status = await klau.Import.GetBatchStatusAsync(submit.BatchId);
+    Console.WriteLine($"Status: {status.Status} — {status.Processed}/{status.Total} processed, cache: {status.DriveTimeCacheStatus}");
 }
+while (!status.IsReadyForOptimization);
 ```
 
-### Alternative: Batch create (when you already have Klau IDs)
+#### Sync import (small batches)
+
+For smaller batches or quick scripts, `ImportAndWaitAsync` processes jobs synchronously and polls the drive-time cache:
+
+```csharp
+var import = await klau.Import.ImportAndWaitAsync(new ImportJobsRequest
+{
+    Jobs =
+    [
+        new ImportJobRecord
+        {
+            CustomerName = "Acme Construction",
+            SiteName = "Main Office",
+            SiteAddress = "456 Industrial Way",
+            SiteCity = "San Luis Obispo",
+            SiteState = "CA",
+            SiteZip = "93401",
+            JobType = "DELIVERY",
+            ContainerSize = "20",
+            TimeWindow = "MORNING",
+            ExternalId = "WO-1001"
+        }
+    ]
+});
+
+Console.WriteLine($"Imported: {import.Imported}, Created: {import.CustomersCreated} customers, {import.SitesCreated} sites");
+```
+
+#### Batch create (when you already have Klau IDs)
 
 If your system already tracks Klau customer and site IDs (e.g. after an initial import), you can use `CreateBatchAsync` for faster job creation without the name-resolution overhead:
 

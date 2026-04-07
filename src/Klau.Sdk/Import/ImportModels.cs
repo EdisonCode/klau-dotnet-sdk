@@ -1,11 +1,17 @@
 using System.Text.Json.Serialization;
+using Klau.Sdk.Common;
 
 namespace Klau.Sdk.Import;
 
 /// <summary>
 /// A single job record for import. Uses customer/site names and addresses
-/// instead of requiring pre-created IDs. When <see cref="ImportJobsRequest.CreateMissing"/>
-/// is true (the default), Klau auto-creates customer and site stubs.
+/// instead of requiring pre-created IDs — you do NOT need to call
+/// <c>Customers.CreateAsync</c> or set up sites before importing.
+///
+/// When <see cref="ImportJobsRequest.CreateMissing"/> is true (the default),
+/// customers and sites that don't already exist are auto-created. Existing records
+/// are matched case-insensitively by name. New sites are geocoded from the address
+/// and added to the drive-time cache automatically.
 /// </summary>
 public sealed record ImportJobRecord
 {
@@ -91,7 +97,9 @@ public sealed record ImportJobRecord
 }
 
 /// <summary>
-/// Request body for POST /api/v1/import/jobs.
+/// Request body for the import endpoints (sync and async).
+/// Used by <see cref="ImportClient.JobsAsync"/>, <see cref="ImportClient.SubmitJobsAsync"/>,
+/// and their convenience wrappers.
 /// </summary>
 public sealed record ImportJobsRequest
 {
@@ -212,4 +220,120 @@ public sealed record BatchReadiness
     /// <summary>Human-readable status message.</summary>
     [JsonPropertyName("message")]
     public required string Message { get; init; }
+}
+
+// --- Async import (POST /api/v1/import/jobs/async → poll /api/v1/import/batches/{batchId}/status) ---
+
+/// <summary>
+/// Result from submitting an async job import.
+/// The batch is queued for background processing — poll
+/// <see cref="ImportClient.GetBatchStatusAsync"/> to track progress.
+/// </summary>
+public sealed record AsyncImportSubmitResult
+{
+    /// <summary>Batch identifier for polling status.</summary>
+    [JsonPropertyName("batchId")]
+    public string BatchId { get; init; } = string.Empty;
+
+    /// <summary>Number of jobs accepted into the batch.</summary>
+    [JsonPropertyName("jobCount")]
+    public int JobCount { get; init; }
+
+    /// <summary>Initial status (always ACCEPTED on a successful submit).</summary>
+    [JsonPropertyName("status")]
+    public ImportBatchStatus Status { get; init; }
+}
+
+/// <summary>
+/// Processing status for an async import batch.
+/// Poll until <see cref="Status"/> is terminal (COMPLETED, PARTIAL_FAILURE, or FAILED)
+/// and <see cref="DriveTimeCacheStatus"/> is READY or NOT_APPLICABLE before optimizing.
+/// </summary>
+public sealed record AsyncImportBatchStatus
+{
+    /// <summary>The import batch identifier.</summary>
+    [JsonPropertyName("batchId")]
+    public string BatchId { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Processing status. Terminal values: COMPLETED, PARTIAL_FAILURE, FAILED.
+    /// </summary>
+    [JsonPropertyName("status")]
+    public ImportBatchStatus Status { get; init; }
+
+    /// <summary>Total jobs in the batch.</summary>
+    [JsonPropertyName("total")]
+    public int Total { get; init; }
+
+    /// <summary>Jobs processed so far.</summary>
+    [JsonPropertyName("processed")]
+    public int Processed { get; init; }
+
+    /// <summary>Jobs successfully imported.</summary>
+    [JsonPropertyName("imported")]
+    public int Imported { get; init; }
+
+    /// <summary>Jobs skipped due to validation errors.</summary>
+    [JsonPropertyName("skipped")]
+    public int Skipped { get; init; }
+
+    /// <summary>Customer records auto-created during import.</summary>
+    [JsonPropertyName("customersCreated")]
+    public int CustomersCreated { get; init; }
+
+    /// <summary>Site records auto-created during import.</summary>
+    [JsonPropertyName("sitesCreated")]
+    public int SitesCreated { get; init; }
+
+    /// <summary>Per-row validation errors. Empty when all jobs succeed.</summary>
+    [JsonPropertyName("errors")]
+    public IReadOnlyList<ImportError> Errors { get; init; } = [];
+
+    /// <summary>
+    /// Drive-time cache warm-up status. Wait for READY or NOT_APPLICABLE
+    /// before running dispatch optimization.
+    /// </summary>
+    [JsonPropertyName("driveTimeCacheStatus")]
+    public DriveTimeCacheStatus DriveTimeCacheStatus { get; init; }
+
+    /// <summary>
+    /// True when <see cref="Status"/> is a terminal value (COMPLETED, PARTIAL_FAILURE, or FAILED).
+    /// </summary>
+    public bool IsTerminal => Status is ImportBatchStatus.COMPLETED
+        or ImportBatchStatus.PARTIAL_FAILURE
+        or ImportBatchStatus.FAILED;
+
+    /// <summary>
+    /// True when the batch is fully done — terminal status and drive-time cache is warm (or not needed).
+    /// Safe to run optimization after this returns true.
+    /// </summary>
+    public bool IsReadyForOptimization => IsTerminal
+        && DriveTimeCacheStatus is DriveTimeCacheStatus.READY or DriveTimeCacheStatus.NOT_APPLICABLE;
+}
+
+/// <summary>
+/// Thrown by <see cref="ImportClient.SubmitAndWaitAsync"/> when polling fails after a
+/// successful submission. The <see cref="BatchId"/> is preserved so the caller can
+/// resume polling manually with <see cref="ImportClient.GetBatchStatusAsync"/>.
+/// </summary>
+public class KlauImportException : Exception
+{
+    /// <summary>
+    /// The batch ID that was successfully submitted. Use this to resume polling
+    /// via <see cref="ImportClient.GetBatchStatusAsync"/> after handling the error.
+    /// </summary>
+    public string BatchId { get; }
+
+    /// <summary>
+    /// The last known batch status, if a status poll succeeded before the failure.
+    /// Null if the first poll failed.
+    /// </summary>
+    public AsyncImportBatchStatus? LastStatus { get; }
+
+    public KlauImportException(string batchId, string message, AsyncImportBatchStatus? lastStatus = null, Exception? innerException = null)
+        : base(message, innerException)
+    {
+        BatchId = batchId;
+        LastStatus = lastStatus;
+    }
 }
