@@ -11,6 +11,7 @@ public interface IDispatchClient
     Task PublishAsync(string date, CancellationToken ct = default);
     Task ReorderAsync(string dispatchId, ReorderRequest request, CancellationToken ct = default);
     Task<WhatIfResult> WhatIfAsync(WhatIfRequest request, CancellationToken ct = default);
+    Task<PlanScoreResult> ScorePlanAsync(string date, bool includeDriverBreakdown = false, CancellationToken ct = default);
 }
 
 public sealed class DispatchClient : IDispatchClient
@@ -96,5 +97,40 @@ public sealed class DispatchClient : IDispatchClient
     public async Task<WhatIfResult> WhatIfAsync(WhatIfRequest request, CancellationToken ct = default)
     {
         return await _http.PostAsync<WhatIfResult>("api/v1/dispatches/what-if", request, _tenantId, ct);
+    }
+
+    /// <summary>
+    /// Score an existing plan without running a fresh optimization. Pure read —
+    /// no mutations, no concurrency lock. Use this after a pre-routed import to
+    /// decide whether the inherited plan is good enough to keep (and skip the
+    /// optimizer) or worth re-optimizing.
+    ///
+    /// The server returns a threshold-driven <see cref="PlanScoreRecommendation"/>
+    /// (<c>KEEP_AS_IS</c> vs <c>RE_OPTIMIZE</c>) plus the underlying scores.
+    ///
+    /// <code>
+    /// var score = await klau.Dispatches.ScorePlanAsync("2026-04-07", includeDriverBreakdown: true);
+    /// if (score.Recommendation == PlanScoreRecommendation.RE_OPTIMIZE)
+    ///     await klau.Dispatches.OptimizeAndWaitAsync(new OptimizeRequest { Date = score.Date });
+    /// </code>
+    /// </summary>
+    /// <param name="date">Dispatch date in <c>YYYY-MM-DD</c> format.</param>
+    /// <param name="includeDriverBreakdown">When true, include per-driver scores in the response.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="KlauApiException">
+    /// Thrown with code <c>VALIDATION_ERROR</c> (400) for a malformed date,
+    /// or <c>DISPATCH_NOT_FOUND</c> (404) when no jobs are scheduled for the date.
+    /// </exception>
+    public async Task<PlanScoreResult> ScorePlanAsync(
+        string date,
+        bool includeDriverBreakdown = false,
+        CancellationToken ct = default)
+    {
+        var body = new PlanScoreRequest { IncludeDriverBreakdown = includeDriverBreakdown };
+        return await _http.PostAsync<PlanScoreResult>(
+            $"api/v1/dispatches/{QueryBuilder.PathEncode(date)}/score",
+            body,
+            _tenantId,
+            ct);
     }
 }

@@ -94,6 +94,54 @@ public sealed record ImportJobRecord
     /// </summary>
     [JsonPropertyName("externalId")]
     public string? ExternalId { get; init; }
+
+    // --- Pre-routing fields (CLI data pipeline) ---
+    //
+    // Preserve source-system driver/truck/sequence assignments end-to-end
+    // instead of dropping them on the floor. When any row in a batch carries
+    // pre-routing fields, the worker resolves drivers (by externalId) and
+    // trucks (by truckNumber, case-insensitive) in a single batch lookup and
+    // assigns each job after creation.
+    //
+    // Pre-routed assignments use AssignmentSource CLI_PREROUTED, which does
+    // NOT auto-pin jobs the way MANUAL does — the dispatcher can still score
+    // the plan and re-optimize freely.
+    //
+    // Unknown driver/truck IDs produce warnings (DRIVER_MATCH_FAILED /
+    // TRUCK_MATCH_FAILED), not hard failures — the job is still imported
+    // unassigned. Check AsyncImportBatchStatus.DriverMatchFailures /
+    // TruckMatchFailures for the per-id roll-up.
+
+    /// <summary>
+    /// External driver ID from the source system. Matched against <c>Driver.externalId</c>
+    /// within the tenant. Unknown IDs produce a <c>DRIVER_MATCH_FAILED</c> warning
+    /// and the job is imported UNASSIGNED.
+    /// </summary>
+    [JsonPropertyName("assignedDriverExternalId")]
+    public string? AssignedDriverExternalId { get; init; }
+
+    /// <summary>
+    /// Truck number from the source system. Matched against <c>Truck.truckNumber</c>
+    /// case-insensitively within the tenant. Unknown numbers produce a
+    /// <c>TRUCK_MATCH_FAILED</c> warning and the job is imported UNASSIGNED.
+    /// </summary>
+    [JsonPropertyName("assignedTruckNumber")]
+    public string? AssignedTruckNumber { get; init; }
+
+    /// <summary>
+    /// 1-based position within the driver's route. Ignored if the driver does not resolve.
+    /// </summary>
+    [JsonPropertyName("sequence")]
+    public int? Sequence { get; init; }
+
+    /// <summary>
+    /// Estimated start time in ISO 8601 format. Naive timestamps (no offset)
+    /// are interpreted as the tenant's local timezone. Required when
+    /// <see cref="AssignedDriverExternalId"/> or <see cref="AssignedTruckNumber"/>
+    /// is set — otherwise the worker emits an <c>ESTIMATED_START_TIME_MISSING</c> warning.
+    /// </summary>
+    [JsonPropertyName("estimatedStartTime")]
+    public string? EstimatedStartTime { get; init; }
 }
 
 /// <summary>
@@ -168,7 +216,10 @@ public sealed record ImportJobsResult
 }
 
 /// <summary>
-/// A validation error for a specific row in the import batch.
+/// A validation or processing warning for a specific row in the import batch.
+/// Rows with an error are NOT rejected from the batch — the import continues
+/// with the affected field(s) dropped. For pre-routing failures specifically,
+/// the job is still imported UNASSIGNED.
 /// </summary>
 public sealed record ImportError
 {
@@ -179,7 +230,8 @@ public sealed record ImportError
     public int Row { get; init; }
 
     /// <summary>
-    /// The field that failed validation (e.g. "customerName", "containerSize", "externalId").
+    /// The field that failed validation (e.g. "customerName", "containerSize",
+    /// "externalId", "assignedDriverExternalId").
     /// </summary>
     [JsonPropertyName("field")]
     public string Field { get; init; } = string.Empty;
@@ -189,6 +241,57 @@ public sealed record ImportError
     /// </summary>
     [JsonPropertyName("message")]
     public string Message { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Structured error code for programmatic handling. Known values include:
+    /// <list type="bullet">
+    ///   <item><c>DRIVER_MATCH_FAILED</c> — <see cref="Meta"/> contains <c>externalId</c>.</item>
+    ///   <item><c>TRUCK_MATCH_FAILED</c> — <see cref="Meta"/> contains <c>truckNumber</c>.</item>
+    ///   <item><c>ESTIMATED_START_TIME_MISSING</c> — row had driver/truck but no start time.</item>
+    ///   <item><c>ESTIMATED_START_TIME_INVALID</c> — start time was not parseable as ISO 8601.</item>
+    ///   <item><c>PRE_ROUTE_ASSIGNMENT_FAILED</c> — <see cref="Meta"/> contains <c>driverExternalId</c> and <c>truckNumber</c>.</item>
+    /// </list>
+    /// Null for legacy per-row validation errors emitted by the sync import path.
+    /// </summary>
+    [JsonPropertyName("code")]
+    public string? Code { get; init; }
+
+    /// <summary>
+    /// Structured metadata keyed by field name. See <see cref="Code"/> for the
+    /// fields carried by each error code. Null or empty for errors that don't
+    /// need additional context beyond <see cref="Field"/> and <see cref="Message"/>.
+    /// </summary>
+    [JsonPropertyName("meta")]
+    public IReadOnlyDictionary<string, string>? Meta { get; init; }
+}
+
+/// <summary>
+/// Aggregated pre-routing match failures for a single identifier. The worker
+/// rolls these up by ID so dispatchers can see at a glance which drivers or
+/// trucks were missing (and how many rows referenced them) without scanning
+/// every <see cref="ImportError"/>.
+/// </summary>
+public sealed record ImportMatchFailure
+{
+    /// <summary>
+    /// Driver external ID that did not resolve. Present on
+    /// <see cref="AsyncImportBatchStatus.DriverMatchFailures"/>.
+    /// </summary>
+    [JsonPropertyName("externalId")]
+    public string? ExternalId { get; init; }
+
+    /// <summary>
+    /// Truck number that did not resolve. Present on
+    /// <see cref="AsyncImportBatchStatus.TruckMatchFailures"/>.
+    /// </summary>
+    [JsonPropertyName("truckNumber")]
+    public string? TruckNumber { get; init; }
+
+    /// <summary>
+    /// Number of rows in the batch that referenced this unresolved identifier.
+    /// </summary>
+    [JsonPropertyName("rowCount")]
+    public int RowCount { get; init; }
 }
 
 /// <summary>
@@ -295,6 +398,33 @@ public sealed record AsyncImportBatchStatus
     /// </summary>
     [JsonPropertyName("driveTimeCacheStatus")]
     public DriveTimeCacheStatus DriveTimeCacheStatus { get; init; }
+
+    /// <summary>
+    /// True when any row in the batch carried pre-routing fields
+    /// (<see cref="ImportJobRecord.AssignedDriverExternalId"/>,
+    /// <see cref="ImportJobRecord.AssignedTruckNumber"/>, etc.).
+    /// The worker takes the pre-routing code path when this is true —
+    /// drivers and trucks are resolved in a single batch lookup before
+    /// any job is created.
+    /// </summary>
+    [JsonPropertyName("preRouted")]
+    public bool PreRouted { get; init; }
+
+    /// <summary>
+    /// Driver external IDs that did not resolve during pre-routing, rolled up
+    /// with the number of rows that referenced each one. Empty when every
+    /// referenced driver was found (or when the batch was not pre-routed).
+    /// </summary>
+    [JsonPropertyName("driverMatchFailures")]
+    public IReadOnlyList<ImportMatchFailure> DriverMatchFailures { get; init; } = [];
+
+    /// <summary>
+    /// Truck numbers that did not resolve during pre-routing, rolled up with
+    /// the number of rows that referenced each one. Empty when every referenced
+    /// truck was found (or when the batch was not pre-routed).
+    /// </summary>
+    [JsonPropertyName("truckMatchFailures")]
+    public IReadOnlyList<ImportMatchFailure> TruckMatchFailures { get; init; } = [];
 
     /// <summary>
     /// True when <see cref="Status"/> is a terminal value (COMPLETED, PARTIAL_FAILURE, or FAILED).

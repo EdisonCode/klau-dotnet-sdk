@@ -7,6 +7,7 @@ using Klau.Sdk.Drivers;
 using Klau.Sdk.DumpSites;
 using Klau.Sdk.DumpTickets;
 using Klau.Sdk.Import;
+using Klau.Sdk.Integrations;
 using Klau.Sdk.Jobs;
 using Klau.Sdk.Materials;
 using Klau.Sdk.Orders;
@@ -27,6 +28,7 @@ public interface IKlauClient
     ICompanyClient Company { get; }
     IJobClient Jobs { get; }
     IImportClient Import { get; }
+    IIntegrationsClient Integrations { get; }
     ICustomerClient Customers { get; }
     IDispatchClient Dispatches { get; }
     IStorefrontClient Storefronts { get; }
@@ -68,6 +70,7 @@ public sealed class KlauClient : IKlauClient, IDisposable
     public ICompanyClient Company { get; }
     public IJobClient Jobs { get; }
     public IImportClient Import { get; }
+    public IIntegrationsClient Integrations { get; }
     public ICustomerClient Customers { get; }
     public IDispatchClient Dispatches { get; }
     public IStorefrontClient Storefronts { get; }
@@ -113,6 +116,7 @@ public sealed class KlauClient : IKlauClient, IDisposable
         Company = new CompanyClient(Http);
         Jobs = new JobClient(Http);
         Import = new ImportClient(Http);
+        Integrations = new IntegrationsClient(Http);
         Customers = new CustomerClient(Http);
         Dispatches = new DispatchClient(Http);
         Storefronts = new StorefrontClient(Http);
@@ -261,6 +265,7 @@ public sealed class TenantScope : IKlauClient
     public ICompanyClient Company { get; }
     public IJobClient Jobs { get; }
     public IImportClient Import { get; }
+    public IIntegrationsClient Integrations { get; }
     public ICustomerClient Customers { get; }
     public IDispatchClient Dispatches { get; }
     public IStorefrontClient Storefronts { get; }
@@ -289,6 +294,7 @@ public sealed class TenantScope : IKlauClient
         Company = new CompanyClient(http, tenantId);
         Jobs = new JobClient(http, tenantId);
         Import = new ImportClient(http, tenantId);
+        Integrations = new IntegrationsClient(http, tenantId);
         Customers = new CustomerClient(http, tenantId);
         Dispatches = new DispatchClient(http, tenantId);
         Storefronts = new StorefrontClient(http, tenantId);

@@ -1,4 +1,7 @@
 using System.Net;
+using System.Text.Json;
+using Klau.Sdk.Common;
+using Klau.Sdk.Dispatches;
 using Klau.Sdk.Tests.Helpers;
 
 namespace Klau.Sdk.Tests;
@@ -235,5 +238,190 @@ public class DispatchClientTests
         Assert.NotNull(job.Result);
         Assert.Equal("ESTIMATED", job.Result!.DriveTimeSource);
         Assert.Equal(85, job.Result.FlowScore);
+    }
+
+    // --- ScorePlanAsync (CLI data pipeline) ---
+
+    [Fact]
+    public async Task ScorePlanAsync_SendsPostToDateScopedPath()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            date = "2026-04-07",
+            planGrade = "B",
+            planQuality = 78,
+            flowScore = 72,
+            assignedJobs = 138,
+            unassignedJobs = 4,
+            driveTimeSource = "CACHED",
+            recommendation = "KEEP_AS_IS",
+            recommendationReason = "Plan quality 78 meets threshold (70)."
+        });
+
+        await client.Dispatches.ScorePlanAsync("2026-04-07");
+
+        var req = Assert.Single(handler.SentRequests);
+        Assert.Equal(HttpMethod.Post, req.Method);
+        Assert.EndsWith("api/v1/dispatches/2026-04-07/score", req.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task ScorePlanAsync_SerializesIncludeDriverBreakdownFlag()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            date = "2026-04-07",
+            planGrade = "A",
+            planQuality = 91,
+            flowScore = 88,
+            assignedJobs = 100,
+            unassignedJobs = 0,
+            recommendation = "KEEP_AS_IS"
+        });
+
+        await client.Dispatches.ScorePlanAsync("2026-04-07", includeDriverBreakdown: true);
+
+        var body = handler.SentBodies[0]!;
+        using var doc = JsonDocument.Parse(body);
+        Assert.True(doc.RootElement.GetProperty("includeDriverBreakdown").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ScorePlanAsync_DeserializesKeepAsIsRecommendation()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            date = "2026-04-07",
+            planGrade = "B",
+            planQuality = 78,
+            flowScore = 72,
+            assignedJobs = 138,
+            unassignedJobs = 4,
+            driveTimeSource = "CACHED",
+            recommendation = "KEEP_AS_IS",
+            recommendationReason = "Plan quality 78 meets threshold (70). Re-optimization is unlikely to improve the plan significantly."
+        });
+
+        var result = await client.Dispatches.ScorePlanAsync("2026-04-07");
+
+        Assert.Equal("2026-04-07", result.Date);
+        Assert.Equal("B", result.PlanGrade);
+        Assert.Equal(78, result.PlanQuality);
+        Assert.Equal(72, result.FlowScore);
+        Assert.Equal(138, result.AssignedJobs);
+        Assert.Equal(4, result.UnassignedJobs);
+        Assert.Equal("CACHED", result.DriveTimeSource);
+        Assert.Equal(PlanScoreRecommendation.KEEP_AS_IS, result.Recommendation);
+        Assert.Contains("meets threshold", result.RecommendationReason);
+        Assert.Null(result.DriverBreakdown);
+    }
+
+    [Fact]
+    public async Task ScorePlanAsync_DeserializesReOptimizeRecommendation()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            date = "2026-04-07",
+            planGrade = "D",
+            planQuality = 55,
+            flowScore = 48,
+            assignedJobs = 90,
+            unassignedJobs = 52,
+            driveTimeSource = "HAVERSINE",
+            recommendation = "RE_OPTIMIZE",
+            recommendationReason = "Plan quality 55 below threshold (70)."
+        });
+
+        var result = await client.Dispatches.ScorePlanAsync("2026-04-07");
+
+        Assert.Equal(PlanScoreRecommendation.RE_OPTIMIZE, result.Recommendation);
+        Assert.Equal("HAVERSINE", result.DriveTimeSource);
+    }
+
+    [Fact]
+    public async Task ScorePlanAsync_DeserializesDriverBreakdown()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            date = "2026-04-07",
+            planGrade = "B",
+            planQuality = 78,
+            flowScore = 72,
+            assignedJobs = 24,
+            unassignedJobs = 0,
+            recommendation = "KEEP_AS_IS",
+            driverBreakdown = new[]
+            {
+                new
+                {
+                    driverName = "Driver A",
+                    jobCount = 12,
+                    score = 84,
+                    chainRate = 0.84,
+                    utilizationPercent = 92.5
+                },
+                new
+                {
+                    driverName = "Driver B",
+                    jobCount = 12,
+                    score = 68,
+                    chainRate = 0.55,
+                    utilizationPercent = 71.0
+                }
+            }
+        });
+
+        var result = await client.Dispatches.ScorePlanAsync("2026-04-07", includeDriverBreakdown: true);
+
+        Assert.NotNull(result.DriverBreakdown);
+        Assert.Equal(2, result.DriverBreakdown!.Count);
+        Assert.Equal("Driver A", result.DriverBreakdown[0].DriverName);
+        Assert.Equal(12, result.DriverBreakdown[0].JobCount);
+        Assert.Equal(84, result.DriverBreakdown[0].Score);
+        Assert.Equal(0.84, result.DriverBreakdown[0].ChainRate);
+        Assert.Equal(92.5, result.DriverBreakdown[0].UtilizationPercent);
+    }
+
+    [Fact]
+    public async Task ScorePlanAsync_ThrowsOnDispatchNotFound()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(
+            HttpStatusCode.NotFound,
+            new ApiErrorBody("DISPATCH_NOT_FOUND", "No jobs scheduled for the date"));
+
+        var ex = await Assert.ThrowsAsync<KlauApiException>(
+            () => client.Dispatches.ScorePlanAsync("2026-04-07"));
+
+        Assert.Equal("DISPATCH_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal(404, ex.StatusCode);
+        Assert.True(ex.IsNotFound);
+    }
+
+    [Fact]
+    public async Task ScorePlanAsync_IncludeDriverBreakdownDefaultsFalse()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            date = "2026-04-07",
+            planGrade = "A",
+            planQuality = 90,
+            flowScore = 85,
+            assignedJobs = 50,
+            unassignedJobs = 0,
+            recommendation = "KEEP_AS_IS"
+        });
+
+        await client.Dispatches.ScorePlanAsync("2026-04-07");
+
+        var body = handler.SentBodies[0]!;
+        using var doc = JsonDocument.Parse(body);
+        Assert.False(doc.RootElement.GetProperty("includeDriverBreakdown").GetBoolean());
     }
 }

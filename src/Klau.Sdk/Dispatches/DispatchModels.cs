@@ -385,3 +385,132 @@ public sealed record WhatIfResult
     [JsonPropertyName("dispatches")]
     public IReadOnlyList<DispatchBoardDriver>? Dispatches { get; init; }
 }
+
+/// <summary>
+/// Recommendation from the plan scoring endpoint. Threshold-driven on the
+/// server (<c>planQuality &lt; 70</c> → RE_OPTIMIZE), so the CLI does not
+/// hard-code the cutoff.
+/// </summary>
+public enum PlanScoreRecommendation
+{
+    /// <summary>Plan quality meets threshold — re-optimization is unlikely to help.</summary>
+    KEEP_AS_IS,
+    /// <summary>Plan quality is below threshold — re-optimize before publishing.</summary>
+    RE_OPTIMIZE
+}
+
+/// <summary>
+/// Score an existing plan without running a fresh optimization. Pure read,
+/// no locks, no mutations. Used by the CLI to decide whether a pre-routed
+/// import is good enough to keep or worth re-optimizing.
+/// </summary>
+public sealed record PlanScoreRequest
+{
+    /// <summary>
+    /// When true, the response includes a per-driver breakdown
+    /// (<see cref="PlanScoreResult.DriverBreakdown"/>). Default false keeps
+    /// the response compact.
+    /// </summary>
+    [JsonPropertyName("includeDriverBreakdown")]
+    public bool IncludeDriverBreakdown { get; init; }
+}
+
+/// <summary>
+/// Result of <see cref="DispatchClient.ScorePlanAsync"/>. Shape is a thin
+/// HTTP adapter over the domain's <c>GetPlanQualityQueryHandler</c>.
+/// </summary>
+public sealed record PlanScoreResult
+{
+    /// <summary>The date that was scored (YYYY-MM-DD).</summary>
+    [JsonPropertyName("date")]
+    public string Date { get; init; } = string.Empty;
+
+    /// <summary>Plan quality letter grade (A+ through F).</summary>
+    [JsonPropertyName("planGrade")]
+    public string PlanGrade { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Overall plan quality score (0-100) combining flow efficiency,
+    /// geographic compactness, utilization balance, and more.
+    /// </summary>
+    [JsonPropertyName("planQuality")]
+    public int PlanQuality { get; init; }
+
+    /// <summary>
+    /// Flow score (0-100) — equal-weighted average of transition efficiency
+    /// and geographic compactness. Derived server-side in the HTTP mapper,
+    /// not a field on the domain's <c>PlanQualityScore</c>.
+    /// </summary>
+    [JsonPropertyName("flowScore")]
+    public int FlowScore { get; init; }
+
+    /// <summary>Number of jobs assigned to a driver for the date.</summary>
+    [JsonPropertyName("assignedJobs")]
+    public int AssignedJobs { get; init; }
+
+    /// <summary>Number of jobs without a driver assignment for the date.</summary>
+    [JsonPropertyName("unassignedJobs")]
+    public int UnassignedJobs { get; init; }
+
+    /// <summary>
+    /// Rolled-up drive-time source across all segments for the date.
+    /// Most pessimistic wins — if any segment is <c>HAVERSINE</c>, the whole
+    /// plan is HAVERSINE. <c>routing_engine</c> and <c>cached</c> both roll up to <c>CACHED</c>.
+    /// </summary>
+    [JsonPropertyName("driveTimeSource")]
+    public string? DriveTimeSource { get; init; }
+
+    /// <summary>
+    /// Threshold decision: KEEP_AS_IS if the plan meets the server-side
+    /// quality threshold, RE_OPTIMIZE otherwise. The threshold may be raised
+    /// in future releases without a CLI update.
+    /// </summary>
+    [JsonPropertyName("recommendation")]
+    public PlanScoreRecommendation Recommendation { get; init; }
+
+    /// <summary>
+    /// Human-readable explanation of the <see cref="Recommendation"/>,
+    /// suitable for displaying to a dispatcher (e.g. "Plan quality 78 meets
+    /// threshold (70). Re-optimization is unlikely to improve the plan
+    /// significantly.").
+    /// </summary>
+    [JsonPropertyName("recommendationReason")]
+    public string? RecommendationReason { get; init; }
+
+    /// <summary>
+    /// Per-driver score breakdown. Populated only when
+    /// <see cref="PlanScoreRequest.IncludeDriverBreakdown"/> is true.
+    /// </summary>
+    [JsonPropertyName("driverBreakdown")]
+    public IReadOnlyList<PlanScoreDriverBreakdown>? DriverBreakdown { get; init; }
+}
+
+/// <summary>
+/// Per-driver detail in a <see cref="PlanScoreResult"/>. Present only when
+/// <see cref="PlanScoreRequest.IncludeDriverBreakdown"/> is true on the request.
+/// </summary>
+public sealed record PlanScoreDriverBreakdown
+{
+    /// <summary>Driver's display name as it appears on the dispatch board.</summary>
+    [JsonPropertyName("driverName")]
+    public string DriverName { get; init; } = string.Empty;
+
+    /// <summary>Number of jobs assigned to this driver for the scored date.</summary>
+    [JsonPropertyName("jobCount")]
+    public int JobCount { get; init; }
+
+    /// <summary>
+    /// Per-driver plan quality score (0-100). This is the individual driver's
+    /// contribution to the overall <see cref="PlanScoreResult.PlanQuality"/>.
+    /// </summary>
+    [JsonPropertyName("score")]
+    public int Score { get; init; }
+
+    /// <summary>Fraction of job transitions that chain without a yard return (0.0 - 1.0).</summary>
+    [JsonPropertyName("chainRate")]
+    public double ChainRate { get; init; }
+
+    /// <summary>Shift utilization as a percentage (0.0 - 100.0).</summary>
+    [JsonPropertyName("utilizationPercent")]
+    public double UtilizationPercent { get; init; }
+}

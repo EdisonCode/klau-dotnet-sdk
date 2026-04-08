@@ -1372,4 +1372,184 @@ public class ImportClientTests
         Assert.True(req.Headers.Contains("Idempotency-Key"));
         Assert.Equal("erp-batch-2026-04-06", req.Headers.GetValues("Idempotency-Key").First());
     }
+
+    // --- Pre-routing fields (CLI data pipeline) ---
+
+    [Fact]
+    public async Task SubmitJobsAsync_SerializesPreRoutingFields()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-pr",
+            jobCount = 1,
+            status = "ACCEPTED"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord
+                {
+                    CustomerName = "Acme Corp",
+                    SiteName = "Site 1",
+                    SiteAddress = "1 Main St",
+                    JobType = "DELIVERY",
+                    ContainerSize = "20",
+                    AssignedDriverExternalId = "463",
+                    AssignedTruckNumber = "T-100",
+                    Sequence = 1,
+                    EstimatedStartTime = "2026-04-07T07:15:00"
+                }
+            ]
+        };
+
+        await client.Import.SubmitJobsAsync(request);
+
+        var body = handler.SentBodies[0]!;
+        using var doc = JsonDocument.Parse(body);
+        var job = doc.RootElement.GetProperty("jobs")[0];
+
+        Assert.Equal("463", job.GetProperty("assignedDriverExternalId").GetString());
+        Assert.Equal("T-100", job.GetProperty("assignedTruckNumber").GetString());
+        Assert.Equal(1, job.GetProperty("sequence").GetInt32());
+        Assert.Equal("2026-04-07T07:15:00", job.GetProperty("estimatedStartTime").GetString());
+    }
+
+    [Fact]
+    public async Task SubmitJobsAsync_OmitsPreRoutingFieldsWhenNull()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-nopr",
+            jobCount = 1,
+            status = "ACCEPTED"
+        });
+
+        var request = new ImportJobsRequest
+        {
+            Jobs =
+            [
+                new ImportJobRecord
+                {
+                    CustomerName = "Acme",
+                    SiteName = "S",
+                    SiteAddress = "1 St",
+                    JobType = "DELIVERY",
+                    ContainerSize = "20"
+                }
+            ]
+        };
+
+        await client.Import.SubmitJobsAsync(request);
+
+        var body = handler.SentBodies[0]!;
+        using var doc = JsonDocument.Parse(body);
+        var job = doc.RootElement.GetProperty("jobs")[0];
+
+        // Pre-routing fields must not appear when unset — the worker uses their
+        // absence to stay on the non-pre-routed code path.
+        Assert.False(job.TryGetProperty("assignedDriverExternalId", out _));
+        Assert.False(job.TryGetProperty("assignedTruckNumber", out _));
+        Assert.False(job.TryGetProperty("sequence", out _));
+        Assert.False(job.TryGetProperty("estimatedStartTime", out _));
+    }
+
+    [Fact]
+    public async Task GetBatchStatusAsync_DeserializesPreRoutingMatchFailures()
+    {
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-pr-status",
+            status = "COMPLETED",
+            total = 142,
+            processed = 142,
+            imported = 142,
+            skipped = 2,
+            customersCreated = 0,
+            sitesCreated = 0,
+            errors = new object[]
+            {
+                new
+                {
+                    row = 4,
+                    field = "assignedDriverExternalId",
+                    message = "Unknown driver externalId \"463\" — job imported unassigned",
+                    code = "DRIVER_MATCH_FAILED",
+                    meta = new { externalId = "463" }
+                },
+                new
+                {
+                    row = 7,
+                    field = "assignedTruckNumber",
+                    message = "Unknown truck \"T-999\"",
+                    code = "TRUCK_MATCH_FAILED",
+                    meta = new { truckNumber = "T-999" }
+                }
+            },
+            driveTimeCacheStatus = "READY",
+            preRouted = true,
+            driverMatchFailures = new[]
+            {
+                new { externalId = "463", rowCount = 12 }
+            },
+            truckMatchFailures = new[]
+            {
+                new { truckNumber = "T-999", rowCount = 1 }
+            }
+        });
+
+        var result = await client.Import.GetBatchStatusAsync("batch-pr-status");
+
+        Assert.True(result.PreRouted);
+        Assert.True(result.IsReadyForOptimization);
+
+        var driverFailure = Assert.Single(result.DriverMatchFailures);
+        Assert.Equal("463", driverFailure.ExternalId);
+        Assert.Equal(12, driverFailure.RowCount);
+
+        var truckFailure = Assert.Single(result.TruckMatchFailures);
+        Assert.Equal("T-999", truckFailure.TruckNumber);
+        Assert.Equal(1, truckFailure.RowCount);
+
+        Assert.Equal(2, result.Errors.Count);
+
+        var driverErr = result.Errors[0];
+        Assert.Equal("DRIVER_MATCH_FAILED", driverErr.Code);
+        Assert.NotNull(driverErr.Meta);
+        Assert.Equal("463", driverErr.Meta!["externalId"]);
+
+        var truckErr = result.Errors[1];
+        Assert.Equal("TRUCK_MATCH_FAILED", truckErr.Code);
+        Assert.Equal("T-999", truckErr.Meta!["truckNumber"]);
+    }
+
+    [Fact]
+    public async Task GetBatchStatusAsync_DefaultsPreRoutingFieldsWhenAbsent()
+    {
+        // Legacy (non-pre-routed) batches must still deserialize cleanly.
+        var (client, handler) = CreateClient();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            batchId = "batch-legacy",
+            status = "COMPLETED",
+            total = 5,
+            processed = 5,
+            imported = 5,
+            skipped = 0,
+            customersCreated = 1,
+            sitesCreated = 2,
+            errors = Array.Empty<object>(),
+            driveTimeCacheStatus = "READY"
+        });
+
+        var result = await client.Import.GetBatchStatusAsync("batch-legacy");
+
+        Assert.False(result.PreRouted);
+        Assert.Empty(result.DriverMatchFailures);
+        Assert.Empty(result.TruckMatchFailures);
+    }
 }
